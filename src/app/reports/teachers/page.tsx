@@ -933,7 +933,7 @@ export default function TeacherReportPage() {
                                                         <tr key={teacher.id} className="hover:bg-indigo-50/50 transition-colors group">
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 <div className="flex items-center">
-                                                                    <div className="flex-shrink-0 h-10 w-10 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">
+                                                                    <div className="shrink-0 h-10 w-10 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">
                                                                         {teacher.name.charAt(0)}
                                                                     </div>
                                                                     <div className="ml-4">
@@ -1060,7 +1060,7 @@ export default function TeacherReportPage() {
                                             </div>
                                         )}
                                         {/* Profile Card */}
-                                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-100">
+                                        <div className="bg-linear-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-100">
                                             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center text-2xl font-bold text-purple-600 border border-purple-100">

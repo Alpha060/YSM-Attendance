@@ -198,9 +198,13 @@ export async function GET(request: NextRequest) {
             }
 
             // RBAC: HODs only see their department's records
-            if (payload.role === 'hod' && payload.departmentId) {
-                params.push(payload.departmentId);
-                queryStr += ` AND ar.student_id IN (SELECT id FROM students WHERE department_id = $${params.length})`;
+            if (payload.role === 'hod') {
+                params.push(payload.userId);
+                queryStr += ` AND ar.student_id IN (
+                    SELECT id FROM students 
+                    WHERE department_id = (SELECT department_id FROM users WHERE id = $${params.length})
+                       OR department_id IN (SELECT department_id FROM user_departments WHERE user_id = $${params.length})
+                )`;
             }
 
             if (subjectId) {

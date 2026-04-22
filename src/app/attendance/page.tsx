@@ -269,7 +269,7 @@ export default function AttendancePage() {
             }
             const data = await res.json();
             const assignments = data.assignments || [];
-            
+
             // Update with fresh data
             applySubjects(assignments);
             cacheToStorage(CACHE_KEYS.SUBJECTS, assignments);
@@ -396,20 +396,20 @@ export default function AttendancePage() {
     // Filter subjects by matching department degree_type
     const filteredSubjects = selectedDepartmentId
         ? subjects.filter(s => {
-              const selectedDept = departments.find(d => d.id === selectedDepartmentId);
-              if (!selectedDept) return true;
-              
-              // Fallback to inferring degree type from code if API cache is stale
-              let expectedDegreeType = selectedDept.degreeType;
-              if (!expectedDegreeType) {
-                  const upperCode = selectedDept.code.toUpperCase();
-                  if (upperCode === 'BCA') expectedDegreeType = 'bca';
-                  else if (upperCode === 'IT') expectedDegreeType = 'it';
-                  else if (upperCode === 'BBA') expectedDegreeType = 'bba';
-              }
-              
-              return expectedDegreeType ? s.degreeType === expectedDegreeType : true;
-          })
+            const selectedDept = departments.find(d => d.id === selectedDepartmentId);
+            if (!selectedDept) return true;
+
+            // Fallback to inferring degree type from code if API cache is stale
+            let expectedDegreeType = selectedDept.degreeType;
+            if (!expectedDegreeType) {
+                const upperCode = selectedDept.code.toUpperCase();
+                if (upperCode === 'BCA') expectedDegreeType = 'bca';
+                else if (upperCode === 'IT') expectedDegreeType = 'it';
+                else if (upperCode === 'BBA') expectedDegreeType = 'bba';
+            }
+
+            return expectedDegreeType ? s.degreeType === expectedDegreeType : true;
+        })
         : subjects;
 
     // Get semesters for filtered subjects. If filtering resulted in empty, fall back to all subjects
@@ -423,7 +423,7 @@ export default function AttendancePage() {
     const filteredSemesters = Array.from(
         new Set(subjectsToUse.flatMap((s: Subject) => s.subjectSemesters))
     ).filter(sem => isSemesterActive(sem, activeDeptTypeForFilter))
-     .sort((a, b) => a - b);
+        .sort((a, b) => a - b);
 
     // Also filter the base availableSemesters (used when no dept filter is active)
     const activeAvailableSemesters = availableSemesters.filter(sem =>
@@ -508,37 +508,37 @@ export default function AttendancePage() {
         const semesterSubjectIds = semesterSubjects.map(s => s.subjectId);
 
         let hasValidCache = false;
-        
+
         // --- INSTANT LOAD (SWR) ---
         const cachedEnrollments = getFromCache<any[]>(CACHE_KEYS.ENROLLMENTS);
         if (cachedEnrollments && cachedEnrollments.length > 0) {
             const studentMap = filterEnrollmentsToStudents(cachedEnrollments, semesterSubjectIds);
             const cachedEnrolledStudents = Array.from(studentMap.values());
-            
-            if (cachedEnrolledStudents.length > 0) {
-                 hasValidCache = true;
-                 const attCacheKey = `cache_att_${subjectId}_${selectedDate}`;
-                 const cachedRawAtt = getFromCache<any[]>(attCacheKey);
-                 const cachedAttendance = cachedRawAtt || [];
-                 
-                 const teacherCachedAtt = user ? cachedAttendance.filter((r: any) => r.teacher_id === user.id) : cachedAttendance;
 
-                 const instantRenderData = cachedEnrolledStudents.map((student: Student) => {
-                     const record = teacherCachedAtt.find((r: any) =>
-                         (r.student_id === student.id) || (r.studentId === student.id)
-                     );
-                     return {
-                         ...student,
-                         attendance: record ? (record.status as 'present' | 'absent') : 'absent'
-                     };
-                 });
-                 
-                 instantRenderData.sort((a, b) =>
-                     String(a.roll_number || '').localeCompare(String(b.roll_number || ''), undefined, { numeric: true, sensitivity: 'base' })
-                 );
-                 
-                 setStudents(instantRenderData);
-                 if (loading) setLoading(false);
+            if (cachedEnrolledStudents.length > 0) {
+                hasValidCache = true;
+                const attCacheKey = `cache_att_${subjectId}_${selectedDate}`;
+                const cachedRawAtt = getFromCache<any[]>(attCacheKey);
+                const cachedAttendance = cachedRawAtt || [];
+
+                const teacherCachedAtt = user ? cachedAttendance.filter((r: any) => r.teacher_id === user.id) : cachedAttendance;
+
+                const instantRenderData = cachedEnrolledStudents.map((student: Student) => {
+                    const record = teacherCachedAtt.find((r: any) =>
+                        (r.student_id === student.id) || (r.studentId === student.id)
+                    );
+                    return {
+                        ...student,
+                        attendance: record ? (record.status as 'present' | 'absent') : 'absent'
+                    };
+                });
+
+                instantRenderData.sort((a, b) =>
+                    String(a.roll_number || '').localeCompare(String(b.roll_number || ''), undefined, { numeric: true, sensitivity: 'base' })
+                );
+
+                setStudents(instantRenderData);
+                if (loading) setLoading(false);
             }
         }
 
@@ -613,7 +613,7 @@ export default function AttendancePage() {
             const attData = await attRes.json();
             existingAttendance = attData.records || [];
             if (existingAttendance.length > 0) {
-                 cacheToStorage(attCacheKey, existingAttendance);
+                cacheToStorage(attCacheKey, existingAttendance);
             }
         } catch (err) {
             console.warn('Could not fetch attendance records (offline)');
@@ -803,7 +803,7 @@ export default function AttendancePage() {
         const executeSearch = (buffer: string) => {
             const currentStudents = studentsRef.current;
             if (!buffer || currentStudents.length === 0) return;
-            
+
             let matchedStudent = currentStudents.find(s => String(s.roll_number).trim() === buffer);
             if (!matchedStudent) {
                 const targetNum = parseInt(buffer, 10);
@@ -817,20 +817,20 @@ export default function AttendancePage() {
                     return false;
                 });
             }
-            
+
             if (matchedStudent) {
                 if (matchedStudent.attendance !== 'present') {
                     markAttendanceRef.current(matchedStudent.id, 'present');
                 }
-                
+
                 setSearchError(''); // Clear error if match is found
 
                 // Scroll to student row
                 const rows = document.querySelectorAll(`tr[data-student-row="${matchedStudent.id}"]`);
                 // Use Array.from to filter visible rows, as multiple DOM structures exist
                 const visibleRow = Array.from(rows).find(row => {
-                     // Check if an ancestor or the element itself is completely hidden
-                     return (row as HTMLElement).offsetParent !== null;
+                    // Check if an ancestor or the element itself is completely hidden
+                    return (row as HTMLElement).offsetParent !== null;
                 });
 
                 if (visibleRow) {
@@ -1030,7 +1030,7 @@ export default function AttendancePage() {
                     <span className="text-2xl font-mono font-bold tracking-widest">{searchBuffer}</span>
                 </div>
             )}
-            
+
             {searchError && (
                 <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in zoom-in duration-200">
                     <X className="w-5 h-5" />
@@ -1071,12 +1071,13 @@ export default function AttendancePage() {
                                     id="date"
                                     type="date"
                                     value={selectedDate}
+                                    max={new Date().toLocaleDateString('en-CA')}
                                     onChange={(e) => setSelectedDate(e.target.value)}
                                     className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500 w-[140px]"
-                                    disabled={user?.role === 'teacher' || user?.role === 'hod'} 
+                                    disabled={user?.role === 'teacher' || user?.role === 'hod'}
                                 />
                             </div>
-                            
+
                             {/* Subject display for Mobile */}
                             <div className="md:hidden flex-1 shrink min-w-0 flex justify-end">
                                 {currentSubject && (
@@ -1164,7 +1165,7 @@ export default function AttendancePage() {
                     {/* Lecture Number Indicator + Topic Input */}
                     {selectedSemester && !isHoliday && (
                         <div className="px-4 mb-3">
-                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-3 shadow-sm">
+                            <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-3 shadow-sm">
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                         <BookOpen className="w-5 h-5 text-blue-600" />
@@ -1287,8 +1288,8 @@ export default function AttendancePage() {
                                                                         className={`relative group overflow-hidden w-20 h-11 rounded-xl flex items-center justify-center font-bold text-xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-1 ${student.attendance === 'present'
                                                                             ? 'bg-green-500 text-white border-green-700 shadow-lg shadow-green-200'
                                                                             : student.attendance === 'absent'
-                                                                            ? 'bg-red-500 text-white border-red-700 shadow-lg shadow-red-200'
-                                                                            : 'bg-gray-200 text-gray-500 border-gray-400 shadow-sm'
+                                                                                ? 'bg-red-500 text-white border-red-700 shadow-lg shadow-red-200'
+                                                                                : 'bg-gray-200 text-gray-500 border-gray-400 shadow-sm'
                                                                             }`}
                                                                     >
                                                                         {student.attendance === 'present' ? 'P' : student.attendance === 'absent' ? 'A' : '-'}
@@ -1516,8 +1517,8 @@ export default function AttendancePage() {
                                                                     className={`w-20 h-12 rounded-xl flex items-center justify-center font-bold text-2xl transition-all duration-200 border-b-4 active:border-b-0 active:translate-y-1 ${student.attendance === 'present'
                                                                         ? 'bg-green-500 text-white border-green-700 shadow-lg shadow-green-100'
                                                                         : student.attendance === 'absent'
-                                                                        ? 'bg-red-500 text-white border-red-700 shadow-lg shadow-red-100'
-                                                                        : 'bg-gray-200 text-gray-500 border-gray-400 shadow-sm'
+                                                                            ? 'bg-red-500 text-white border-red-700 shadow-lg shadow-red-100'
+                                                                            : 'bg-gray-200 text-gray-500 border-gray-400 shadow-sm'
                                                                         }`}
                                                                     onClick={() => toggleAttendance(student.id)}
                                                                     title={student.attendance === 'present' ? 'Present - Cycle states' : student.attendance === 'absent' ? 'Absent - Cycle states' : 'Not Marked - Cycle states'}
