@@ -1,6 +1,7 @@
-const CACHE_NAME = 'ysm-attendance-v9';
-const STATIC_CACHE = 'ysm-static-v9';
-const API_CACHE = 'ysm-api-v9';
+const APP_VERSION = 'v2';
+const CACHE_NAME = 'ysm-attendance-v10';
+const STATIC_CACHE = 'ysm-static-v10';
+const API_CACHE = 'ysm-api-v10';
 const OFFLINE_QUEUE_STORE = 'offline-attendance-queue';
 
 // Static assets to pre-cache on install
@@ -58,6 +59,16 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name !== STATIC_CACHE && name !== API_CACHE)
           .map((name) => caches.delete(name))
       );
+    }).then(() => {
+      // Always notify clients of current version
+      self.clients.matchAll({ type: 'window' }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({
+            type: 'SW_VERSION',
+            data: { version: APP_VERSION },
+          });
+        });
+      });
     })
   );
   self.clients.claim();

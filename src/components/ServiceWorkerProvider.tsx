@@ -98,6 +98,18 @@ export function ServiceWorkerProvider({ children }: { children: React.ReactNode 
           console.log('SW registered:', registration.scope);
           // Check for updates on every load
           registration.update();
+
+          // Detect when a new SW is found and installing
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'activated') {
+                  console.log('[SW] New service worker activated');
+                }
+              });
+            }
+          });
         })
         .catch((err) => {
           console.error('SW registration failed:', err);
@@ -108,6 +120,14 @@ export function ServiceWorkerProvider({ children }: { children: React.ReactNode 
         const { type, data } = event.data;
 
         switch (type) {
+          case 'SW_VERSION': {
+            const storedVersion = localStorage.getItem('sw_app_version');
+            if (storedVersion && storedVersion !== data.version) {
+              addToast('synced', `App updated to ${data.version} ✨`);
+            }
+            localStorage.setItem('sw_app_version', data.version);
+            break;
+          }
           case 'ATTENDANCE_QUEUED':
             addToast('queued', `Attendance saved offline (${data.count} records)`);
             refreshPendingCount();
