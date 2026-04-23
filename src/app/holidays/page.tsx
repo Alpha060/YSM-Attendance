@@ -94,7 +94,7 @@ export default function HolidaysPage() {
             const data = await res.json();
             const holidaysList = data.holidays || [];
             setHolidays(holidaysList);
-            try { sessionStorage.setItem('cache_holidays', JSON.stringify(holidaysList)); } catch {}
+            try { sessionStorage.setItem('cache_holidays', JSON.stringify(holidaysList)); } catch { }
         } catch (err) {
             console.error('Error fetching holidays:', err);
         }
@@ -415,7 +415,7 @@ export default function HolidaysPage() {
                                         className="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-cyan-400 flex gap-4"
                                     >
                                         {/* Date Box */}
-                                        <div className="flex-shrink-0 w-14 h-14 bg-cyan-50 rounded-xl flex flex-col items-center justify-center">
+                                        <div className="shrink-0 w-14 h-14 bg-cyan-50 rounded-xl flex flex-col items-center justify-center">
                                             <span className="text-lg font-bold text-cyan-800">{dateInfo.day}</span>
                                             <span className="text-xs text-cyan-600">{dateInfo.month}</span>
                                         </div>
@@ -433,7 +433,7 @@ export default function HolidaysPage() {
 
                                         {/* Delete Button */}
                                         {canManageHolidays && (
-                                            <div className="flex-shrink-0 self-start">
+                                            <div className="shrink-0 self-start">
                                                 {(isSuperAdmin || (isHOD && holiday.department_id === user?.departmentId)) && (
                                                     <button
                                                         onClick={() => handleDelete(holiday.id)}
@@ -627,7 +627,7 @@ export default function HolidaysPage() {
                                 {/* Error */}
                                 {error && (
                                     <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center gap-2">
-                                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                        <AlertTriangle className="w-4 h-4 shrink-0" />
                                         {error}
                                     </div>
                                 )}
@@ -635,7 +635,7 @@ export default function HolidaysPage() {
                                 {/* Success */}
                                 {success && (
                                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-sm text-emerald-700 flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                                        <CheckCircle2 className="w-4 h-4 shrink-0" />
                                         {success}
                                     </div>
                                 )}

@@ -59,7 +59,7 @@ export default function LoginPage() {
                         alt="Paramahansa Yogananda"
                         className="w-full h-full object-cover opacity-30 mix-blend-luminosity hover:mix-blend-normal transition-all duration-1000 ease-in-out scale-105 hover:scale-100"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/90 to-blue-900/40"></div>
+                    <div className="absolute inset-0 bg-linear-to-t from-gray-900 via-gray-900/90 to-blue-900/40"></div>
                 </div>
 
                 {/* Content */}
@@ -69,7 +69,7 @@ export default function LoginPage() {
                             <img src="/college-logo.png" alt="YSM Logo" className="w-full h-full object-contain drop-shadow-md" />
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-orange-200 to-white">
+                            <span className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-orange-200 to-white">
                                 Yogoda Satsanga
                             </span>
                             <span className="text-sm font-semibold text-blue-200 tracking-[0.2em] uppercase">
@@ -85,7 +85,7 @@ export default function LoginPage() {
                         <span className="text-blue-300">Body, Mind, & Soul.</span>
                     </h1>
                     <p className="text-lg text-gray-300 leading-relaxed font-light">
-                        Welcome to the official attendance management system of YSM Ranchi. <br/>
+                        Welcome to the official attendance management system of YSM Ranchi. <br />
                         <span className="text-white/80 font-medium">Digital • Transparent • Efficient</span>
                     </p>
 
@@ -95,15 +95,15 @@ export default function LoginPage() {
                             <span className="text-sm text-gray-200 font-medium">Real-time attendance</span>
                         </div>
                         <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm shadow-sm hover:bg-white/10 transition-colors cursor-default">
-                           <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]"></div>
+                            <div className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]"></div>
                             <span className="text-sm text-gray-200 font-medium">Secure Records</span>
                         </div>
                     </div>
                 </div>
 
                 <div className="relative z-10 text-xs text-gray-500 border-t border-white/10 pt-6 flex justify-between items-center animate-fade-in duration-1000 delay-500">
-                   <span>© {new Date().getFullYear()} Yogoda Satsanga Mahavidyalaya.</span>
-                   <span className="text-gray-600">Established 1967</span>
+                    <span>© {new Date().getFullYear()} Yogoda Satsanga Mahavidyalaya.</span>
+                    <span className="text-gray-600">Established 1967</span>
                 </div>
             </div>
 
@@ -111,16 +111,16 @@ export default function LoginPage() {
             <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-6 md:p-12 lg:p-24 bg-gray-50 lg:bg-white transition-colors duration-500">
                 {/* Mobile Background Decoration (Only visible on small screens to add depth) */}
                 <div className="absolute inset-0 lg:hidden overflow-hidden pointer-events-none z-0">
-                    <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-blue-600 to-indigo-800 rounded-b-[3rem]"></div>
-                     <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                     <div className="absolute top-20 right-10 w-48 h-48 bg-orange-500/20 rounded-full blur-3xl"></div>
+                    <div className="absolute top-0 left-0 right-0 h-64 bg-linear-to-b from-blue-600 to-indigo-800 rounded-b-[3rem]"></div>
+                    <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                    <div className="absolute top-20 right-10 w-48 h-48 bg-orange-500/20 rounded-full blur-3xl"></div>
                 </div>
-                
+
                 <div className="w-full max-w-[420px] space-y-8 relative z-10">
-                    
+
                     {/* Card Container for Mobile (White box on colored bg) / Plain for Desktop */}
                     <div className="bg-white lg:bg-transparent p-6 sm:p-8 rounded-3xl shadow-xl lg:shadow-none border border-gray-100 lg:border-none animate-scale-in duration-500">
-                        
+
                         {/* Mobile Header Logo */}
                         <div className="lg:hidden flex flex-col items-center gap-4 mb-8">
                             <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100 h-24 w-24 flex items-center justify-center relative -mt-16 sm:mt-0">
@@ -208,7 +208,7 @@ export default function LoginPage() {
 
                             <Button
                                 type="submit"
-                                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25 rounded-xl transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] mt-2 relative overflow-hidden group"
+                                className="w-full h-12 text-base font-semibold bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25 rounded-xl transition-all duration-300 hover:scale-[1.01] active:scale-[0.98] mt-2 relative overflow-hidden group"
                                 disabled={loading}
                             >
                                 <span className={`absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-xl`}></span>
@@ -246,9 +246,9 @@ export default function LoginPage() {
                             </div>
                         </div> */}
                     </div>
-                    
+
                     {/* Mobile Footer */}
-                     <div className="lg:hidden text-center mt-6 text-xs text-gray-400 font-medium pb-4">
+                    <div className="lg:hidden text-center mt-6 text-xs text-gray-400 font-medium pb-4">
                         © {new Date().getFullYear()} YSM Ranchi
                     </div>
                 </div>

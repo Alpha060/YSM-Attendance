@@ -145,7 +145,7 @@ export default function SubjectsPage() {
             const data = await res.json();
             const subjectsList = data.subjects || [];
             setSubjects(subjectsList);
-            try { sessionStorage.setItem('cache_subjects', JSON.stringify(subjectsList)); } catch {}
+            try { sessionStorage.setItem('cache_subjects', JSON.stringify(subjectsList)); } catch { }
         } catch (err) {
             console.error('Error fetching subjects:', err);
         }
@@ -158,7 +158,7 @@ export default function SubjectsPage() {
             const data = await res.json();
             const deptsList = data.departments || [];
             setDepartments(deptsList);
-            try { sessionStorage.setItem('cache_departments', JSON.stringify(deptsList)); } catch {}
+            try { sessionStorage.setItem('cache_departments', JSON.stringify(deptsList)); } catch { }
         } catch (err) {
             console.error('Error fetching departments:', err);
         }
@@ -693,7 +693,7 @@ export default function SubjectsPage() {
                             >
                                 <option value="">All Semesters</option>
                                 {(() => {
-                                    const effectiveDeptTypeForFilter = filterDegreeType 
+                                    const effectiveDeptTypeForFilter = filterDegreeType
                                         ? getDeptTypeFromDegreeType(filterDegreeType)
                                         : (user?.role === 'super_admin' ? 'regular' : (departments.length > 0 ? getDeptTypeFromDegreeType(departments[0].degree_type) : 'regular'));
                                     return getActiveSemesters(effectiveDeptTypeForFilter).map(s => {
@@ -764,7 +764,7 @@ export default function SubjectsPage() {
                                             <td className="px-4 py-4 text-center text-sm font-medium text-gray-500">{index + 1}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-indigo-200">
+                                                    <div className="h-10 w-10 rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-indigo-200">
                                                         {group.code.substring(0, 2)}
                                                     </div>
                                                     <div>
@@ -845,7 +845,7 @@ export default function SubjectsPage() {
                                 >
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-blue-200">
+                                            <div className="h-10 w-10 rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-sm shadow-blue-200">
                                                 {group.code.substring(0, 2)}
                                             </div>
                                             <div>
@@ -1024,7 +1024,7 @@ export default function SubjectsPage() {
                                         <Label htmlFor="deptType">Course Type *</Label>
                                         <select
                                             id="deptType"
-                                            className="w-full p-2 border rounded bg-gradient-to-r from-cyan-50 to-white"
+                                            className="w-full p-2 border rounded bg-linear-to-r from-cyan-50 to-white"
                                             value={formData.deptType}
                                             onChange={(e) => {
                                                 const newDeptType = e.target.value;

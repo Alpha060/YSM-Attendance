@@ -157,12 +157,12 @@ export default function TeachersPage() {
         const selectedDegreeTypes = departments
             .filter(d => selectedDepartmentIds.includes(d.id))
             .map(d => d.degree_type);
-        
+
         // Include if the grouped subject contains ANY of the selected degree types
-        const filtered = groupedSubjects.filter(([, g]) => 
+        const filtered = groupedSubjects.filter(([, g]) =>
             g.degreeTypes.some(dt => selectedDegreeTypes.includes(dt))
         );
-        
+
         // Sort according to paper code
         return filtered.sort(([, a], [, b]) => {
             const paperA = (a.paperCode || a.code || '').toLowerCase();
@@ -227,7 +227,7 @@ export default function TeachersPage() {
             const data = await res.json();
             const teachersList = data.teachers || [];
             setTeachers(teachersList);
-            try { sessionStorage.setItem('cache_teachers', JSON.stringify(teachersList)); } catch {}
+            try { sessionStorage.setItem('cache_teachers', JSON.stringify(teachersList)); } catch { }
         } catch (err) {
             console.error('Error fetching teachers:', err);
         }
@@ -243,7 +243,7 @@ export default function TeachersPage() {
             const data = await res.json();
             const deptsList = data.departments || [];
             setDepartments(deptsList);
-            try { sessionStorage.setItem('cache_departments', JSON.stringify(deptsList)); } catch {}
+            try { sessionStorage.setItem('cache_departments', JSON.stringify(deptsList)); } catch { }
         } catch (err) {
             console.error('Error fetching departments:', err);
         }
@@ -258,7 +258,7 @@ export default function TeachersPage() {
             const data = await res.json();
             const subjectsList = data.subjects || [];
             setSubjects(subjectsList);
-            try { sessionStorage.setItem('cache_subjects', JSON.stringify(subjectsList)); } catch {}
+            try { sessionStorage.setItem('cache_subjects', JSON.stringify(subjectsList)); } catch { }
         } catch (err) {
             console.error('Error fetching subjects:', err);
         }
@@ -465,7 +465,7 @@ export default function TeachersPage() {
                 .map(d => d.degree_type);
 
             const targetSubjectIds = new Set<string>();
-            const targetSubjects = subjects.filter(s => 
+            const targetSubjects = subjects.filter(s =>
                 selectedSubjectKeys.includes(s.code) && targetDegreeTypes.includes(s.degreeType)
             );
             targetSubjects.forEach(s => targetSubjectIds.add(s.id));
@@ -823,7 +823,7 @@ export default function TeachersPage() {
                                             <td className="px-4 py-4 text-center text-sm font-medium text-gray-500">{index + 1}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                                                    <div className="h-10 w-10 rounded-full bg-linear-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
                                                         {getInitials(teacher.first_name, teacher.last_name)}
                                                     </div>
                                                     <div>
@@ -901,7 +901,7 @@ export default function TeachersPage() {
                                 <div key={teacher.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-bold">
+                                            <div className="h-10 w-10 rounded-full bg-linear-to-br from-orange-400 to-pink-500 flex items-center justify-center text-white font-bold">
                                                 {getInitials(teacher.first_name, teacher.last_name)}
                                             </div>
                                             <div>
@@ -1040,8 +1040,8 @@ export default function TeachersPage() {
                                                     className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
                                                 />
                                             )}
-                                            <Label 
-                                                htmlFor={selectedTeacherId ? "enablePasswordUpdate" : "password"} 
+                                            <Label
+                                                htmlFor={selectedTeacherId ? "enablePasswordUpdate" : "password"}
                                                 className={selectedTeacherId ? "cursor-pointer" : ""}
                                             >
                                                 {selectedTeacherId ? 'Update Password (Optional)' : 'Password'}

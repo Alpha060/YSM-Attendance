@@ -1,18 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { 
-    X, 
-    Settings, 
-    LayoutDashboard, 
-    Building2, 
-    BookOpen, 
-    Users, 
-    GraduationCap, 
-    CalendarDays, 
-    BarChart3, 
+import {
+    X,
+    Settings,
+    LayoutDashboard,
+    Building2,
+    BookOpen,
+    Users,
+    GraduationCap,
+    CalendarDays,
+    BarChart3,
     ClipboardCheck,
-    UsersRound, 
+    UsersRound,
     User,
     TrendingUp
 } from 'lucide-react';
@@ -61,7 +61,7 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
         const commonLinks = [
             { id: 'dashboard', title: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
         ];
-        
+
         if (user.role === 'super_admin') {
             return [
                 ...commonLinks,
@@ -104,7 +104,7 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
             />
 
             {/* Sidebar */}
-            <div 
+            <div
                 className={`fixed left-0 top-0 h-full w-72 bg-white/80 backdrop-blur-md border-r border-gray-100 shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out ${isMounted ? 'translate-x-0' : '-translate-x-full'}`}
             >
                 {/* Header App Branding */}
@@ -112,9 +112,9 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
                     <div className="flex items-start justify-between p-4">
                         <div className="flex flex-col gap-3 w-full">
                             <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-0.5 shadow-sm">
+                                <div className="w-12 h-12 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center p-0.5 shadow-sm">
                                     <div className="w-full h-full rounded-full border-2 border-white bg-white flex items-center justify-center">
-                                        <span className="text-base font-bold bg-clip-text text-transparent bg-gradient-to-br from-blue-600 to-purple-600">
+                                        <span className="text-base font-bold bg-clip-text text-transparent bg-linear-to-br from-blue-600 to-purple-600">
                                             {getInitials(user.firstName || '', user.lastName || '')}
                                         </span>
                                     </div>
@@ -132,7 +132,7 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
-                            
+
                             <button
                                 onClick={() => setShowProfileModal(true)}
                                 className="w-fit inline-flex flex-row items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 hover:border-blue-300 text-xs font-semibold text-gray-700 hover:text-blue-600 rounded-full shadow-sm hover:shadow transition-all"
@@ -147,18 +147,17 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
                 {/* Navigation Links */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-200">
                     <p className="px-3 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 mt-2">Main Menu</p>
-                    
+
                     {navLinks.map((link) => {
                         const isActive = pathname === link.href || pathname.startsWith(link.href + '/');
                         return (
                             <button
                                 key={link.id}
                                 onClick={() => navigateTo(link.href)}
-                                className={`w-full group flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200 ${
-                                    isActive 
-                                    ? 'bg-blue-50/80 text-blue-700 shadow-sm border border-blue-100/50' 
-                                    : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900 border border-transparent'
-                                }`}
+                                className={`w-full group flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200 ${isActive
+                                        ? 'bg-blue-50/80 text-blue-700 shadow-sm border border-blue-100/50'
+                                        : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900 border border-transparent'
+                                    }`}
                             >
                                 <div className="flex items-center gap-3.5">
                                     <div className={`transition-transform duration-300 ${isActive ? 'text-blue-600 scale-110' : 'text-gray-400 group-hover:text-gray-600 group-hover:scale-110'}`}>
@@ -168,7 +167,7 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
                                         {link.title}
                                     </span>
                                 </div>
-                                
+
                                 {isActive && (
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
                                 )}
@@ -182,11 +181,10 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
                     {user.role === 'super_admin' && (
                         <button
                             onClick={() => navigateTo('/settings')}
-                            className={`w-full group flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200 ${
-                                pathname.startsWith('/settings') 
-                                ? 'bg-blue-50/80 text-blue-700 shadow-sm border border-blue-100/50' 
-                                : 'bg-white text-gray-700 hover:text-blue-700 border border-gray-100 hover:border-blue-200 shadow-sm hover:shadow-md'
-                            }`}
+                            className={`w-full group flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200 ${pathname.startsWith('/settings')
+                                    ? 'bg-blue-50/80 text-blue-700 shadow-sm border border-blue-100/50'
+                                    : 'bg-white text-gray-700 hover:text-blue-700 border border-gray-100 hover:border-blue-200 shadow-sm hover:shadow-md'
+                                }`}
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`transition-transform duration-300 ${pathname.startsWith('/settings') ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`}>

@@ -98,13 +98,13 @@ export function CustomClockPicker({ isOpen, onClose, initialTime = '08:00', onSa
     };
 
     return (
-        <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 sm:p-6 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
-            <div 
+        <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-100 flex items-center justify-center p-4 sm:p-6 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
+            <div
                 className={`bg-white rounded-3xl overflow-hidden w-full max-w-sm shadow-2xl transition-all duration-300 transform ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-8'}`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header Displays */}
-                <div className="bg-gradient-to-br from-teal-500 to-emerald-600 p-6 text-white flex flex-col items-center relative">
+                <div className="bg-linear-to-br from-teal-500 to-emerald-600 p-6 text-white flex flex-col items-center relative">
                     <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors backdrop-blur-md">
                         <X className="w-4 h-4 text-white" />
                     </button>
@@ -114,14 +114,14 @@ export function CustomClockPicker({ isOpen, onClose, initialTime = '08:00', onSa
                     </div>
 
                     <div className="flex items-center justify-center gap-2 relative w-full">
-                        <button 
+                        <button
                             onClick={() => setMode('h')}
                             className={`text-5xl font-black rounded-xl px-4 py-2 transition-all ${mode === 'h' ? 'bg-white text-teal-600 shadow-xl scale-105' : 'text-white/80 hover:bg-white/10'}`}
                         >
                             {h}
                         </button>
                         <div className="text-4xl font-black text-white/50 mb-1">:</div>
-                        <button 
+                        <button
                             onClick={() => setMode('m')}
                             className={`text-5xl font-black rounded-xl px-4 py-2 transition-all ${mode === 'm' ? 'bg-white text-teal-600 shadow-xl scale-105' : 'text-white/80 hover:bg-white/10'}`}
                         >
@@ -129,13 +129,13 @@ export function CustomClockPicker({ isOpen, onClose, initialTime = '08:00', onSa
                         </button>
 
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1">
-                            <button 
+                            <button
                                 onClick={() => setPeriod('AM')}
                                 className={`text-xs font-black px-2 py-1 rounded-md transition-all ${period === 'AM' ? 'bg-white text-teal-600 shadow-sm scale-110' : 'text-white/70 hover:bg-white/20'}`}
                             >
                                 AM
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setPeriod('PM')}
                                 className={`text-xs font-black px-2 py-1 rounded-md transition-all ${period === 'PM' ? 'bg-white text-teal-600 shadow-sm scale-110' : 'text-white/70 hover:bg-white/20'}`}
                             >
@@ -150,15 +150,15 @@ export function CustomClockPicker({ isOpen, onClose, initialTime = '08:00', onSa
                     <div className="relative w-[240px] h-[240px] rounded-full bg-slate-200/50 shadow-inner flex items-center justify-center mb-6">
                         {/* Center Dot */}
                         <div className="w-2 h-2 rounded-full bg-teal-500 absolute z-10"></div>
-                        
+
                         {/* Hand/Line connecting to selected */}
-                        <div className="absolute w-1 h-[80px] bg-teal-500/30 origin-bottom rounded-full" 
-                             style={{ 
-                                bottom: '120px', 
-                                transform: `rotate(${mode === 'h' ? (parseInt(h) * 30) : (parseInt(m)/5) * 30}deg)`,
+                        <div className="absolute w-1 h-[80px] bg-teal-500/30 origin-bottom rounded-full"
+                            style={{
+                                bottom: '120px',
+                                transform: `rotate(${mode === 'h' ? (parseInt(h) * 30) : (parseInt(m) / 5) * 30}deg)`,
                                 transformOrigin: 'bottom center',
                                 transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                             }} 
+                            }}
                         ></div>
 
                         {/* Rendering Hours or Minutes */}
@@ -179,8 +179,8 @@ export function CustomClockPicker({ isOpen, onClose, initialTime = '08:00', onSa
                     <button onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors">
                         Cancel
                     </button>
-                    <button 
-                        onClick={handleSave} 
+                    <button
+                        onClick={handleSave}
                         className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-sm font-bold rounded-xl shadow-md shadow-teal-500/20 transition-all active:scale-95"
                     >
                         <Check className="w-4 h-4" />

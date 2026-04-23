@@ -84,7 +84,7 @@ export default function ClassSchedulePage() {
     // Assignments: Map<cellKey(deptId-sem-slot), { teacherId, subjectId }>
     const [assignments, setAssignments] = useState<Map<string, { teacherId: string; subjectId: string }>>(new Map());
     const [savingCell, setSavingCell] = useState<string | null>(null);
-    const [clockPicker, setClockPicker] = useState<{isOpen: boolean, index: number, type: 'startTime'|'endTime', value: string} | null>(null);
+    const [clockPicker, setClockPicker] = useState<{ isOpen: boolean, index: number, type: 'startTime' | 'endTime', value: string } | null>(null);
 
     const today = (() => {
         const d = new Date();
@@ -162,18 +162,18 @@ export default function ClassSchedulePage() {
                 const deptData = await deptRes.json();
                 const depts: Department[] = deptData.departments || [];
                 setDepartments(depts);
-                try { sessionStorage.setItem('cache_departments', JSON.stringify(depts)); } catch {}
+                try { sessionStorage.setItem('cache_departments', JSON.stringify(depts)); } catch { }
 
                 if (teacherRes.ok) {
                     const teacherData = await teacherRes.json();
                     setAllTeachers(teacherData.teachers || []);
-                    try { sessionStorage.setItem('cache_teachers_all', JSON.stringify(teacherData.teachers || [])); } catch {}
+                    try { sessionStorage.setItem('cache_teachers_all', JSON.stringify(teacherData.teachers || [])); } catch { }
                 }
 
                 if (batchRes.ok) {
                     const batchData = await batchRes.json();
                     setBatchConfig(batchData.mappings || {});
-                    try { sessionStorage.setItem('cache_batch_config', JSON.stringify(batchData.mappings || {})); } catch {}
+                    try { sessionStorage.setItem('cache_batch_config', JSON.stringify(batchData.mappings || {})); } catch { }
                 }
 
                 // Fetch time slots (use first department's config)
@@ -353,9 +353,9 @@ export default function ClassSchedulePage() {
     const getTeacherSubjectsForSemester = (teacherId: string, semester: number, deptId: string): TeacherSubject[] => {
         const teacher = allTeachers.find(t => t.id === teacherId);
         if (!teacher || !teacher.subjects) return [];
-        
+
         const dept = departments.find(d => d.id === deptId);
-        
+
         return teacher.subjects.filter(s => {
             if (!s.semesters || !s.semesters.includes(semester)) return false;
             // Support backward compatibility if degree_type isn't set, but if it is, enforce it
@@ -373,7 +373,7 @@ export default function ClassSchedulePage() {
                 const parts = key.split('-');
                 const assignedSem = parseInt(parts[parts.length - 2], 10);
                 const assignedSlot = parseInt(parts[parts.length - 1], 10);
-                
+
                 if (assignedSlot === slotNumber && assignedSem !== semester && assignment.teacherId === t.id) {
                     return false; // Teacher is busy in another semester for this slot
                 }
@@ -420,7 +420,7 @@ export default function ClassSchedulePage() {
         return () => {
             if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [timeSlots]);
 
     // Save time slots to ALL departments
@@ -525,7 +525,7 @@ export default function ClassSchedulePage() {
     const exportSchedulePDF = () => {
         const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/college-logo.png` : '/college-logo.png';
         const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-        
+
         let colsHtml = `<th style="width: 120px;">Semester</th>`;
         displaySlots.forEach(slot => {
             colsHtml += `<th>Class ${slot.slotNumber}<br><small style="opacity: 0.8; font-weight: normal;">${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}</small></th>`;
@@ -537,12 +537,12 @@ export default function ClassSchedulePage() {
                 // Spacer row for PDF to clearly separate semesters
                 rowsHtml += `<tr><td colspan="${displaySlots.length + 1}" style="background: #e2e8f0; height: 12px; padding: 0; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1;"></td></tr>`;
             }
-            
+
             const deptsForSem = getDepartmentsForSemester(sem);
             deptsForSem.forEach((dept, deptIdx) => {
                 const isFirstDeptRow = deptIdx === 0;
                 rowsHtml += `<tr>`;
-                
+
                 // Semester Col
                 rowsHtml += `<td style="background: ${isFirstDeptRow ? '#ffffff' : '#f8fafc'};">
                     ${isFirstDeptRow ? `<strong style="font-size: 13px;">Sem-0${sem}</strong><br><small style="color: #4f46e5; font-weight: bold;">${getBatchLabel(sem, dept.deptType)}</small>` : ''}
@@ -558,7 +558,7 @@ export default function ClassSchedulePage() {
                     if (assignment) {
                         const t = allTeachers.find(t => t.id === assignment.teacherId);
                         const autoSubject = getTeacherSubjectsForSemester(assignment.teacherId, sem, dept.id)[0];
-                        
+
                         rowsHtml += `<td style="background: #f1f5f9;">`;
                         if (t) {
                             rowsHtml += `<div style="font-weight: bold; color: #0f172a; font-size: 11px;">${t.first_name} ${t.last_name}</div>`;
@@ -663,7 +663,7 @@ export default function ClassSchedulePage() {
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 md:mb-8">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-teal-500 text-white rounded-2xl shadow-sm">
+                        <div className="p-3 bg-linear-to-br from-indigo-500 to-teal-500 text-white rounded-2xl shadow-sm">
                             <CalendarClock className="w-6 h-6 sm:w-7 sm:h-7" />
                         </div>
                         <div>
@@ -704,11 +704,10 @@ export default function ClassSchedulePage() {
 
                 {/* Status Message */}
                 {message && (
-                    <div className={`p-4 rounded-xl mb-6 text-sm font-semibold flex items-center gap-3 shadow-sm ${
-                        message.type === 'error'
+                    <div className={`p-4 rounded-xl mb-6 text-sm font-semibold flex items-center gap-3 shadow-sm ${message.type === 'error'
                             ? 'bg-red-50 text-red-700 border border-red-200/60'
                             : 'bg-teal-50 text-teal-800 border border-teal-200/60'
-                    }`}>
+                        }`}>
                         {message.type === 'error' ? <AlertCircle className="w-5 h-5" /> : <Check className="w-5 h-5" />}
                         {message.text}
                     </div>
@@ -843,9 +842,8 @@ export default function ClassSchedulePage() {
                                                             key={`${sem}-${dept.id}`}
                                                             className={`hover:bg-blue-50/10 transition-colors ${isLastDeptRow ? 'border-b border-transparent' : ''}`}
                                                         >
-                                                            <td className={`px-5 py-4 sticky left-0 z-10 border-r border-slate-200 ${
-                                                                isFirstDeptRow ? 'bg-white' : 'bg-slate-50'
-                                                            }`}>
+                                                            <td className={`px-5 py-4 sticky left-0 z-10 border-r border-slate-200 ${isFirstDeptRow ? 'bg-white' : 'bg-slate-50'
+                                                                }`}>
                                                                 {isFirstDeptRow && (
                                                                     <div className="flex items-center gap-2 mb-1">
                                                                         <div className="text-lg font-black text-slate-900 tracking-tight">
@@ -857,11 +855,10 @@ export default function ClassSchedulePage() {
                                                                     </div>
                                                                 )}
                                                                 {showMultipleDepts && (
-                                                                    <div className={`text-[10px] font-bold px-2 py-0.5 rounded inline-flex mt-1 ${
-                                                                        deptIdx === 0
+                                                                    <div className={`text-[10px] font-bold px-2 py-0.5 rounded inline-flex mt-1 ${deptIdx === 0
                                                                             ? 'bg-slate-100 text-slate-700 border border-slate-200'
                                                                             : 'bg-zinc-100 text-zinc-700 border border-zinc-200'
-                                                                    }`}>
+                                                                        }`}>
                                                                         {dept.code}
                                                                     </div>
                                                                 )}
@@ -880,12 +877,11 @@ export default function ClassSchedulePage() {
 
                                                                 return (
                                                                     <td key={slot.slotNumber} className="px-2 py-2 align-top group/cell">
-                                                                        <div className={`relative rounded-xl border p-2 transition-all min-h-[72px] flex flex-col justify-center ${
-                                                                            assignment
+                                                                        <div className={`relative rounded-xl border p-2 transition-all min-h-[72px] flex flex-col justify-center ${assignment
                                                                                 ? 'border-blue-200 bg-blue-50/40 shadow-sm'
                                                                                 : 'border-transparent bg-slate-50/50 hover:bg-white hover:border-blue-200 hover:shadow-sm'
-                                                                        } ${isSaving ? 'opacity-60 scale-95' : ''}`}>
-                                                                            
+                                                                            } ${isSaving ? 'opacity-60 scale-95' : ''}`}>
+
                                                                             {assignment ? (
                                                                                 <div className="space-y-1">
                                                                                     <select

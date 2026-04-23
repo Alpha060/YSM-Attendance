@@ -48,7 +48,7 @@ export function Navbar({ user, onMenuClick, onLogout, backUrl, backLabel }: Navb
                             <div className="bg-white p-1 rounded-full h-9 w-9 flex items-center justify-center overflow-hidden border border-blue-100 shadow-sm">
                                 <img src="/college-logo.png" alt="YSM Logo" className="w-full h-full object-contain" />
                             </div>
-                            <span className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-600 to-blue-700 hidden sm:block">
+                            <span className="text-lg font-bold bg-clip-text text-transparent bg-linear-to-r from-orange-600 to-blue-700 hidden sm:block">
                                 YSM Ranchi
                             </span>
                         </div>
@@ -67,7 +67,7 @@ export function Navbar({ user, onMenuClick, onLogout, backUrl, backLabel }: Navb
 
                     <div className="flex items-center gap-4">
                         {user && (
-                            <div 
+                            <div
                                 className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-1.5 pr-2 rounded-full transition-colors"
                                 onClick={() => setShowProfileModal(true)}
                             >
@@ -79,7 +79,7 @@ export function Navbar({ user, onMenuClick, onLogout, backUrl, backLabel }: Navb
                                         {user.role.replace('_', ' ')}
                                     </span>
                                 </div>
-                                <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 p-0.5 shadow-sm">
+                                <div className="h-8 w-8 rounded-full bg-linear-to-tr from-blue-500 to-purple-500 p-0.5 shadow-sm">
                                     <div className="h-full w-full rounded-full bg-white flex items-center justify-center text-xs font-bold text-blue-700">
                                         {getInitials(user.firstName, user.lastName)}
                                     </div>

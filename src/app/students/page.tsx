@@ -190,7 +190,7 @@ export default function StudentsPage() {
             const data = await safeJson(res);
             const studentsList = data?.students || [];
             setStudents(studentsList);
-            try { sessionStorage.setItem('cache_students', JSON.stringify(studentsList)); } catch {}
+            try { sessionStorage.setItem('cache_students', JSON.stringify(studentsList)); } catch { }
         } catch (err) {
             console.error('Error fetching students:', err);
         }
@@ -207,7 +207,7 @@ export default function StudentsPage() {
             const data = await safeJson(res);
             const deptsList = data?.departments || [];
             setDepartments(deptsList);
-            try { sessionStorage.setItem('cache_departments', JSON.stringify(deptsList)); } catch {}
+            try { sessionStorage.setItem('cache_departments', JSON.stringify(deptsList)); } catch { }
         } catch (err) {
             console.error('Error fetching departments:', err);
         }
@@ -223,7 +223,7 @@ export default function StudentsPage() {
             const data = await safeJson(res);
             const subjectsList = data?.subjects || [];
             setSubjects(subjectsList);
-            try { sessionStorage.setItem('cache_subjects', JSON.stringify(subjectsList)); } catch {}
+            try { sessionStorage.setItem('cache_subjects', JSON.stringify(subjectsList)); } catch { }
         } catch (err) {
             console.error('Error fetching subjects:', err);
         }
@@ -249,7 +249,7 @@ export default function StudentsPage() {
     const getSemesterFromBatchConfig = (admissionYear: number, deptType: string): number | null => {
         const mappings = batchConfig[deptType];
         if (!mappings) return null;
-        
+
         // Find the semester where the batch_year matches the admission year
         for (const [semStr, batchYear] of Object.entries(mappings)) {
             if (batchYear === admissionYear) {
@@ -961,41 +961,41 @@ export default function StudentsPage() {
                     {/* Filters */}
                     <div className="md:col-span-4 flex gap-2">
                         {/* Always show department filters for Admins and HODs */}
-                            {new Set(departments.map(d => d.dept_type)).size > 1 && (
-                                <div className="relative w-full">
-                                    <select
-                                        className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer"
-                                        value={filterDeptType}
-                                        onChange={(e) => {
-                                            setFilterDeptType(e.target.value);
-                                            setFilterDepartmentId(''); // Reset department when type changes
-                                        }}
-                                    >
-                                        <option value="">All Types</option>
-                                        <option value="regular">Regular</option>
-                                        <option value="vocational">Vocational</option>
-                                        <option value="pg">PG</option>
-                                    </select>
-                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                </div>
-                            )}
-                            {departments.length > 1 && (
-                                <div className="relative w-full">
-                                    <select
-                                        className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer"
-                                        value={filterDepartmentId}
-                                        onChange={(e) => setFilterDepartmentId(e.target.value)}
-                                    >
-                                        <option value="">All Departments</option>
-                                        {departments
-                                            .filter(dept => !filterDeptType || dept.dept_type === filterDeptType)
-                                            .map((dept) => (
-                                                <option key={dept.id} value={dept.id}>{dept.name} ({(dept.degree_type || '').toUpperCase()})</option>
-                                            ))}
-                                    </select>
-                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                                </div>
-                            )}
+                        {new Set(departments.map(d => d.dept_type)).size > 1 && (
+                            <div className="relative w-full">
+                                <select
+                                    className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer"
+                                    value={filterDeptType}
+                                    onChange={(e) => {
+                                        setFilterDeptType(e.target.value);
+                                        setFilterDepartmentId(''); // Reset department when type changes
+                                    }}
+                                >
+                                    <option value="">All Types</option>
+                                    <option value="regular">Regular</option>
+                                    <option value="vocational">Vocational</option>
+                                    <option value="pg">PG</option>
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        )}
+                        {departments.length > 1 && (
+                            <div className="relative w-full">
+                                <select
+                                    className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer"
+                                    value={filterDepartmentId}
+                                    onChange={(e) => setFilterDepartmentId(e.target.value)}
+                                >
+                                    <option value="">All Departments</option>
+                                    {departments
+                                        .filter(dept => !filterDeptType || dept.dept_type === filterDeptType)
+                                        .map((dept) => (
+                                            <option key={dept.id} value={dept.id}>{dept.name} ({(dept.degree_type || '').toUpperCase()})</option>
+                                        ))}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        )}
                         <div className="relative w-full">
                             <select
                                 className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer"
@@ -1057,7 +1057,7 @@ export default function StudentsPage() {
                                             <td className="px-4 py-4 text-center text-sm font-medium text-gray-500">{index + 1}</td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-emerald-100 to-teal-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
+                                                    <div className="h-10 w-10 rounded-full bg-linear-to-tr from-emerald-100 to-teal-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
                                                         {student.first_name[0]}{student.last_name[0]}
                                                     </div>
                                                     <div>
@@ -1236,7 +1236,7 @@ export default function StudentsPage() {
 
                                 {/* Parsed Info Display */}
                                 {parsedInfo?.isValid && (
-                                    <div className="p-3 bg-gradient-to-r from-emerald-50 to-cyan-50 border border-emerald-200 rounded-xl">
+                                    <div className="p-3 bg-linear-to-r from-emerald-50 to-cyan-50 border border-emerald-200 rounded-xl">
                                         <div className="flex items-center gap-2 mb-2">
                                             <Sparkles className="w-4 h-4 text-emerald-600" />
                                             <span className="text-sm font-medium text-emerald-800">Detected Information</span>

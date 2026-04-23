@@ -292,18 +292,17 @@ export default function ClassesPage() {
                     {'Notification' in (typeof window !== 'undefined' ? window : {}) && (
                         <button
                             onClick={requestNotifPermission}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                                notifPermission === 'granted'
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${notifPermission === 'granted'
                                     ? 'bg-green-100 text-green-700 border border-green-200'
                                     : notifPermission === 'denied'
-                                    ? 'bg-red-100 text-red-600 border border-red-200 cursor-not-allowed'
-                                    : 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200'
-                            }`}
+                                        ? 'bg-red-100 text-red-600 border border-red-200 cursor-not-allowed'
+                                        : 'bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200'
+                                }`}
                             disabled={notifPermission === 'denied'}
                             title={
                                 notifPermission === 'granted' ? 'Notifications enabled'
-                                : notifPermission === 'denied' ? 'Notifications blocked in browser settings'
-                                : 'Enable notifications for class reminders'
+                                    : notifPermission === 'denied' ? 'Notifications blocked in browser settings'
+                                        : 'Enable notifications for class reminders'
                             }
                         >
                             {notifPermission === 'granted' ? (
@@ -320,14 +319,14 @@ export default function ClassesPage() {
                 {/* Notification Info Banner */}
                 {notifPermission === 'granted' && notifScheduled && classes.length > 0 && (
                     <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2 text-xs text-green-700 font-medium">
-                        <BellRing className="w-4 h-4 flex-shrink-0" />
+                        <BellRing className="w-4 h-4 shrink-0" />
                         Notifications scheduled for {classes.filter(c => isClassUpcoming(c.start_time)).length} upcoming class(es)
                     </div>
                 )}
 
                 {(() => {
                     const validClasses = classes.filter(c => c.start_time && c.end_time);
-                    
+
                     if (validClasses.length === 0) {
                         return (
                             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
@@ -343,112 +342,110 @@ export default function ClassesPage() {
                     return (
                         <div className="space-y-3">
                             {Object.values(validClasses.reduce((acc, cls) => {
-                            const key = `${cls.slot_number}`; // Group strictly by slot number since a teacher can only be in one physical class at a time
-                            const paperCodeVal = cls.paper_code || cls.subject_code;
+                                const key = `${cls.slot_number}`; // Group strictly by slot number since a teacher can only be in one physical class at a time
+                                const paperCodeVal = cls.paper_code || cls.subject_code;
 
-                            if (!acc[key]) {
-                                acc[key] = { 
-                                    ...cls, 
-                                    department_codes: [cls.department_code], 
-                                    semesters: [cls.semester],
-                                    subject_names: [cls.subject_name],
-                                    paper_codes: [paperCodeVal]
-                                };
-                            } else {
-                                if (!acc[key].department_codes.includes(cls.department_code)) {
-                                    acc[key].department_codes.push(cls.department_code);
+                                if (!acc[key]) {
+                                    acc[key] = {
+                                        ...cls,
+                                        department_codes: [cls.department_code],
+                                        semesters: [cls.semester],
+                                        subject_names: [cls.subject_name],
+                                        paper_codes: [paperCodeVal]
+                                    };
+                                } else {
+                                    if (!acc[key].department_codes.includes(cls.department_code)) {
+                                        acc[key].department_codes.push(cls.department_code);
+                                    }
+
+                                    const isSemExists = acc[key].semesters.some(s => String(s) === String(cls.semester));
+                                    if (!isSemExists) {
+                                        acc[key].semesters.push(cls.semester);
+                                    }
+
+                                    const cleanName = cls.subject_name.trim().toLowerCase();
+                                    const isNameExists = acc[key].subject_names.some(n => n.trim().toLowerCase() === cleanName);
+                                    if (!isNameExists) {
+                                        acc[key].subject_names.push(cls.subject_name);
+                                    }
+
+                                    const cleanPaper = paperCodeVal.trim().toLowerCase();
+                                    const isPaperExists = acc[key].paper_codes.some(p => p.trim().toLowerCase() === cleanPaper);
+                                    if (!isPaperExists) {
+                                        acc[key].paper_codes.push(paperCodeVal);
+                                    }
                                 }
-                                
-                                const isSemExists = acc[key].semesters.some(s => String(s) === String(cls.semester));
-                                if (!isSemExists) {
-                                    acc[key].semesters.push(cls.semester);
-                                }
-                                
-                                const cleanName = cls.subject_name.trim().toLowerCase();
-                                const isNameExists = acc[key].subject_names.some(n => n.trim().toLowerCase() === cleanName);
-                                if (!isNameExists) {
-                                    acc[key].subject_names.push(cls.subject_name);
-                                }
-                                
-                                const cleanPaper = paperCodeVal.trim().toLowerCase();
-                                const isPaperExists = acc[key].paper_codes.some(p => p.trim().toLowerCase() === cleanPaper);
-                                if (!isPaperExists) {
-                                    acc[key].paper_codes.push(paperCodeVal);
-                                }
-                            }
-                            return acc;
-                        }, {} as Record<string, ClassItem & { department_codes: string[], semesters: number[], subject_names: string[], paper_codes: string[] }>)).map((cls) => {
-                            const active = isClassActive(cls.start_time, cls.end_time);
-                            const upcoming = isClassUpcoming(cls.start_time);
+                                return acc;
+                            }, {} as Record<string, ClassItem & { department_codes: string[], semesters: number[], subject_names: string[], paper_codes: string[] }>)).map((cls) => {
+                                const active = isClassActive(cls.start_time, cls.end_time);
+                                const upcoming = isClassUpcoming(cls.start_time);
 
-                            return (
-                                <div
-                                    key={cls.id}
-                                    className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
-                                        active
-                                            ? 'border-green-300 ring-2 ring-green-100'
-                                            : upcoming
-                                            ? 'border-blue-200'
-                                            : 'border-gray-100 opacity-75'
-                                    }`}
-                                >
-                                    {/* Active badge */}
-                                    {active && (
-                                        <div className="bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider py-1 px-4 flex items-center gap-1.5">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                            Currently Active
-                                        </div>
-                                    )}
-
-                                    <div className="p-4 sm:p-5">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="flex-1 min-w-0">
-                                                {/* Time */}
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Clock className={`w-4 h-4 flex-shrink-0 ${active ? 'text-green-600' : 'text-blue-500'}`} />
-                                                    <span className={`text-sm font-bold ${active ? 'text-green-700' : 'text-gray-900'}`}>
-                                                        {formatTime(cls.start_time)} – {formatTime(cls.end_time)}
-                                                    </span>
-                                                    <span className="text-xs text-gray-400">Class {cls.slot_number}</span>
-                                                </div>
-
-                                                {/* Subject */}
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <BookOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                                                    <span className="text-sm font-semibold text-gray-800 truncate">
-                                                        {cls.subject_names.join(' / ')}
-                                                    </span>
-                                                    <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-md flex-shrink-0 whitespace-nowrap">
-                                                        {cls.paper_codes.join('/')}
-                                                    </span>
-                                                </div>
-
-                                                {/* Semester & Dept */}
-                                                <div className="flex flex-wrap items-center gap-2 mt-2">
-                                                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg">
-                                                        Sem: {cls.semesters.join('/')} ({getBatchLabel(cls.semesters[0], cls.department_codes[0])})
-                                                    </span>
-                                                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-700 px-2.5 py-1 rounded-lg border border-gray-200 shadow-sm">
-                                                        <Building2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                                                        <span className="font-bold">{cls.department_codes.join('/')}</span>
-                                                    </span>
-                                                </div>
+                                return (
+                                    <div
+                                        key={cls.id}
+                                        className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${active
+                                                ? 'border-green-300 ring-2 ring-green-100'
+                                                : upcoming
+                                                    ? 'border-blue-200'
+                                                    : 'border-gray-100 opacity-75'
+                                            }`}
+                                    >
+                                        {/* Active badge */}
+                                        {active && (
+                                            <div className="bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider py-1 px-4 flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                                Currently Active
                                             </div>
+                                        )}
 
-                                            {/* Slot indicator */}
-                                            <div className={`flex-shrink-0 w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shadow-sm ${
-                                                active ? 'bg-green-100 border-green-300 text-green-900 shadow-green-100' : upcoming ? 'bg-blue-100 border-blue-300 text-blue-900 shadow-blue-100' : 'bg-gray-100 border-gray-300 text-gray-800 opacity-90'
-                                            }`}>
-                                                <span className="text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5 opacity-60">Class</span>
-                                                <span className="text-2xl font-black leading-none">{cls.slot_number}</span>
+                                        <div className="p-4 sm:p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    {/* Time */}
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <Clock className={`w-4 h-4 shrink-0 ${active ? 'text-green-600' : 'text-blue-500'}`} />
+                                                        <span className={`text-sm font-bold ${active ? 'text-green-700' : 'text-gray-900'}`}>
+                                                            {formatTime(cls.start_time)} – {formatTime(cls.end_time)}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400">Class {cls.slot_number}</span>
+                                                    </div>
+
+                                                    {/* Subject */}
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <BookOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                                                        <span className="text-sm font-semibold text-gray-800 truncate">
+                                                            {cls.subject_names.join(' / ')}
+                                                        </span>
+                                                        <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                                                            {cls.paper_codes.join('/')}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Semester & Dept */}
+                                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg">
+                                                            Sem: {cls.semesters.join('/')} ({getBatchLabel(cls.semesters[0], cls.department_codes[0])})
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-700 px-2.5 py-1 rounded-lg border border-gray-200 shadow-sm">
+                                                            <Building2 className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                                                            <span className="font-bold">{cls.department_codes.join('/')}</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Slot indicator */}
+                                                <div className={`shrink-0 w-14 h-14 rounded-2xl flex flex-col items-center justify-center border shadow-sm ${active ? 'bg-green-100 border-green-300 text-green-900 shadow-green-100' : upcoming ? 'bg-blue-100 border-blue-300 text-blue-900 shadow-blue-100' : 'bg-gray-100 border-gray-300 text-gray-800 opacity-90'
+                                                    }`}>
+                                                    <span className="text-[10px] font-bold uppercase tracking-widest leading-none mb-0.5 opacity-60">Class</span>
+                                                    <span className="text-2xl font-black leading-none">{cls.slot_number}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                );
+                                );
+                            })}
+                        </div>
+                    );
                 })()}
 
                 {/* Footer */}

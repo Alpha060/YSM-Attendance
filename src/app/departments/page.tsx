@@ -89,7 +89,7 @@ export default function DepartmentsPage() {
             const data = await res.json();
             const deptsList = data.departments || [];
             setDepartments(deptsList);
-            try { sessionStorage.setItem('cache_dept_page', JSON.stringify(deptsList)); } catch {}
+            try { sessionStorage.setItem('cache_dept_page', JSON.stringify(deptsList)); } catch { }
         } catch (err) {
             console.error('Error fetching departments:', err);
         }
@@ -298,7 +298,7 @@ export default function DepartmentsPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
-                                                    <div className="flex-shrink-0 h-8 w-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold mr-3">
+                                                    <div className="shrink-0 h-8 w-8 rounded-full bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold mr-3">
                                                         {getHodInitials(dept.hod_name)}
                                                     </div>
                                                     <div className="text-sm text-gray-600">{dept.hod_name || <span className="text-gray-400 italic">Unassigned</span>}</div>
@@ -365,7 +365,7 @@ export default function DepartmentsPage() {
                                     </div>
 
                                     <div className="flex items-center gap-3 pt-3 border-t border-gray-50">
-                                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
+                                        <div className="h-7 w-7 rounded-full bg-linear-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
                                             {getHodInitials(dept.hod_name)}
                                         </div>
                                         <div className="flex flex-col">

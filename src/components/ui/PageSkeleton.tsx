@@ -58,7 +58,7 @@ const TableRowSkeleton = ({ columns = 5 }: { columns?: number }) => (
                     {i === 0 && <Shimmer className="w-6 h-4" />}
                     {i === 1 && (
                         <>
-                            <Shimmer className="w-10 h-10 rounded-xl flex-shrink-0" />
+                            <Shimmer className="w-10 h-10 rounded-xl shrink-0" />
                             <div>
                                 <Shimmer className="w-32 h-4 mb-1.5" />
                                 <Shimmer className="w-20 h-3" />
@@ -112,7 +112,7 @@ const MobileCardSkeleton = ({ count = 4 }: { count?: number }) => (
             <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
                 <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-3">
-                        <Shimmer className="w-10 h-10 rounded-xl flex-shrink-0" />
+                        <Shimmer className="w-10 h-10 rounded-xl shrink-0" />
                         <div>
                             <Shimmer className="w-32 h-5 mb-1.5" />
                             <Shimmer className="w-20 h-3" />
@@ -138,7 +138,7 @@ const ReportCardsSkeleton = () => (
     <>
         {/* Hero Section Skeleton */}
         <div className="rounded-3xl bg-gray-200 animate-pulse p-6 sm:p-8 mb-6 h-40" />
-        
+
         {/* Quick Stats Skeleton */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -156,12 +156,12 @@ const ReportCardsSkeleton = () => (
 
         {/* Report Cards Title */}
         <Shimmer className="w-48 h-6 mb-4" />
-        
+
         {/* Report Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start gap-4">
-                    <Shimmer className="w-12 h-12 rounded-xl flex-shrink-0" />
+                    <Shimmer className="w-12 h-12 rounded-xl shrink-0" />
                     <div className="flex-1">
                         <Shimmer className="w-32 h-5 mb-2" />
                         <Shimmer className="w-48 h-3" />
@@ -177,7 +177,7 @@ const HolidaysMobileSkeleton = () => (
     <div className="md:hidden space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="bg-white rounded-2xl p-4 shadow-sm border-l-4 border-gray-200 flex gap-4">
-                <Shimmer className="w-14 h-14 rounded-xl flex-shrink-0" />
+                <Shimmer className="w-14 h-14 rounded-xl shrink-0" />
                 <div className="flex-1">
                     <Shimmer className="w-36 h-5 mb-2" />
                     <Shimmer className="w-16 h-3 mb-1" />

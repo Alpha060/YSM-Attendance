@@ -338,10 +338,10 @@ export default function DashboardPage() {
                             className={`group relative bg-white p-4 sm:p-6 rounded-2xl shadow-sm border ${card.borderColor} hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden`}
                         >
                             {/* Decorative gradient blob */}
-                            <div className={`absolute -right-8 -top-8 w-24 h-24 rounded-full bg-gradient-to-br ${card.gradient} opacity-20 group-hover:scale-150 transition-transform duration-500`}></div>
+                            <div className={`absolute -right-8 -top-8 w-24 h-24 rounded-full bg-linear-to-br ${card.gradient} opacity-20 group-hover:scale-150 transition-transform duration-500`}></div>
 
                             <div className="relative flex items-start justify-between mb-3 sm:mb-4">
-                                <div className={`p-2.5 sm:p-3 rounded-xl bg-gradient-to-br ${card.gradient} ${card.textColor}`}>
+                                <div className={`p-2.5 sm:p-3 rounded-xl bg-linear-to-br ${card.gradient} ${card.textColor}`}>
                                     {card.iconComponent}
                                 </div>
                                 <div className="p-1.5 sm:p-2 rounded-full bg-gray-50 text-gray-300 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
