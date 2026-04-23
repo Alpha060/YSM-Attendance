@@ -1074,7 +1074,7 @@ export default function AttendancePage() {
                                     max={new Date().toLocaleDateString('en-CA')}
                                     onChange={(e) => setSelectedDate(e.target.value)}
                                     className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500 w-[140px]"
-                                    disabled={user?.role === 'teacher' || user?.role === 'hod'}
+                                    //disabled={user?.role === 'teacher' || user?.role === 'hod'}
                                 />
                             </div>
 
