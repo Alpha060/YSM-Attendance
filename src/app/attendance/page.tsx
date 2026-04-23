@@ -148,10 +148,14 @@ export default function AttendancePage() {
         setLoading(false);
     }, [router]);
 
-    // Real-time updates: refresh holidays and subjects when changed
+    const selectedSubjectIdRef = useRef(selectedSubjectId);
+    useEffect(() => { selectedSubjectIdRef.current = selectedSubjectId; }, [selectedSubjectId]);
+    const fetchStudentsRef = useRef<any>(null);
+
+    // Real-time updates: refresh holidays, subjects, and attendance when changed
     // (Don't auto-refresh student list during active marking)
     useRealtimeData({
-        tables: ['holidays', 'subjects', 'teacher_subjects'],
+        tables: ['holidays', 'subjects', 'teacher_subjects', 'attendance_records', 'enrollments'],
         onTableChange: useCallback((table: string) => {
             const token = localStorage.getItem('token');
             if (!token) return;
@@ -161,6 +165,11 @@ export default function AttendancePage() {
                 if (userData) {
                     const u = JSON.parse(userData);
                     fetchTeacherSubjects(token, u.id);
+                }
+            }
+            if (table === 'attendance_records' || table === 'enrollments') {
+                if (selectedSubjectIdRef.current && !pendingChangesRef.current && fetchStudentsRef.current) {
+                    fetchStudentsRef.current(selectedSubjectIdRef.current, true);
                 }
             }
         }, []),
@@ -500,7 +509,11 @@ export default function AttendancePage() {
         return allStudentsMap;
     };
 
-    const fetchStudentsForSubject = async (subjectId: string) => {
+    useEffect(() => {
+        fetchStudentsRef.current = fetchStudentsForSubject;
+    });
+
+    const fetchStudentsForSubject = async (subjectId: string, silent = false) => {
         const token = localStorage.getItem('token');
         if (!token || !subjectId) return;
 
@@ -543,7 +556,7 @@ export default function AttendancePage() {
         }
 
         // Show spinner only if no cache to instantly render
-        if (!hasValidCache) {
+        if (!hasValidCache && !silent) {
             setLoading(true);
         }
 
@@ -587,8 +600,18 @@ export default function AttendancePage() {
             });
             enrolledStudents = Array.from(allStudentsMap.values());
 
-            // Save to localStorage for instant SWR loads
-            cacheToStorage(CACHE_KEYS.ENROLLMENTS, data.enrollments || []);
+            // Save to localStorage for instant SWR loads (Merge to prevent losing other semesters)
+            const existingCache = getFromCache<any[]>(CACHE_KEYS.ENROLLMENTS) || [];
+            const cacheMap = new Map();
+            existingCache.forEach(e => {
+                const subjId = e._fromSubjectId || e.subjectId;
+                cacheMap.set(`${e.studentId}-${subjId}`, e);
+            });
+            (data.enrollments || []).forEach((e: any) => {
+                const subjId = e._fromSubjectId || e.subjectId;
+                cacheMap.set(`${e.studentId}-${subjId}`, e);
+            });
+            cacheToStorage(CACHE_KEYS.ENROLLMENTS, Array.from(cacheMap.values()));
         } catch (err) {
             console.warn('Network failed, background student fetch canceled');
             if (hasValidCache) return; // Silent fail if we have cache
@@ -660,10 +683,15 @@ export default function AttendancePage() {
             String(a.roll_number || '').localeCompare(String(b.roll_number || ''), undefined, { numeric: true, sensitivity: 'base' })
         );
 
-        setStudents(studentsWithAttendance);
+        // Prevent flicker by only updating state if data changed
+        if (JSON.stringify(studentsWithAttendance) !== JSON.stringify(studentsRef.current)) {
+            setStudents(studentsWithAttendance);
+        }
 
         // Reset pending changes on fresh load
-        pendingChangesRef.current = false;
+        if (!silent) {
+            pendingChangesRef.current = false;
+        }
 
         // Fetch history (non-critical, skip gracefully if offline)
         fetchAttendanceHistory(studentsWithAttendance, subjectId);
@@ -783,7 +811,7 @@ export default function AttendancePage() {
             } finally {
                 setAutoSaving(false);
             }
-        }, 1500);
+        }, 500);
     }, [selectedSubjectId, selectedDate]);
 
     const markAttendance = (studentId: string, status: 'present' | 'absent') => {
@@ -1074,17 +1102,42 @@ export default function AttendancePage() {
                                     max={new Date().toLocaleDateString('en-CA')}
                                     onChange={(e) => setSelectedDate(e.target.value)}
                                     className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500 w-[140px]"
-                                    //disabled={user?.role === 'teacher' || user?.role === 'hod'}
+                                //disabled={user?.role === 'teacher' || user?.role === 'hod'}
                                 />
                             </div>
 
-                            {/* Subject display for Mobile */}
-                            <div className="md:hidden flex-1 shrink min-w-0 flex justify-end">
-                                {currentSubject && (
-                                    <span className="text-xs font-semibold bg-gray-100 px-2.5 py-1.5 rounded-lg text-gray-700 block truncate max-w-full border border-gray-200">
-                                        {currentSubject.subjectName} ({currentSubject.subjectPaperCode || currentSubject.subjectCode})
-                                    </span>
-                                )}
+                            {/* Subject selector for Mobile */}
+                            <div className="md:hidden shrink min-w-0 flex justify-end max-w-[45%]">
+                                {(() => {
+                                    if (!selectedSemester) return null;
+                                    const semSubjects = subjectsToUse.filter(s => s.subjectSemesters.includes(parseInt(selectedSemester)));
+                                    if (semSubjects.length > 1) {
+                                        return (
+                                            <select
+                                                className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-800 truncate"
+                                                value={selectedSubjectId}
+                                                onChange={(e) => {
+                                                    setSelectedSubjectId(e.target.value);
+                                                    e.target.blur();
+                                                }}
+                                            >
+                                                {semSubjects.map(s => (
+                                                    <option key={s.subjectId} value={s.subjectId}>
+                                                        {s.subjectName} ({s.subjectPaperCode || s.subjectCode})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        );
+                                    }
+                                    if (currentSubject) {
+                                        return (
+                                            <span className="text-xs font-semibold bg-gray-200 px-2 py-1.5 rounded-lg text-gray-800 block truncate max-w-full border border-gray-300">
+                                                {currentSubject.subjectName} ({currentSubject.subjectPaperCode || currentSubject.subjectCode})
+                                            </span>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
                         </div>
                     </div>
@@ -1099,7 +1152,7 @@ export default function AttendancePage() {
                                 {/* Department filter if multiple */}
                                 {departments.length > 1 && (
                                     <select
-                                        className="flex-1 px-3 py-2.5 bg-white border rounded-xl text-sm font-medium"
+                                        className="flex-1 px-1 py-2.5 bg-white border rounded-xl text-sm font-medium"
                                         value={selectedDepartmentId}
                                         onChange={(e) => {
                                             setSelectedDepartmentId(e.target.value);
@@ -1140,30 +1193,7 @@ export default function AttendancePage() {
                                 </select>
                             </div>
 
-                            {/* Subject selector - only when multiple subjects in same dept+semester */}
-                            {(() => {
-                                if (!selectedSemester) return null;
-                                const semSubjects = subjectsToUse.filter(s => s.subjectSemesters.includes(parseInt(selectedSemester)));
-                                if (semSubjects.length <= 1) return null;
-                                return (
-                                    <div className="mt-2">
-                                        <select
-                                            className="w-full px-3 py-2.5 bg-white border rounded-xl text-sm font-medium"
-                                            value={selectedSubjectId}
-                                            onChange={(e) => {
-                                                setSelectedSubjectId(e.target.value);
-                                                e.target.blur();
-                                            }}
-                                        >
-                                            {semSubjects.map(s => (
-                                                <option key={s.subjectId} value={s.subjectId}>
-                                                    {s.subjectName} ({s.subjectPaperCode || s.subjectCode})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                );
-                            })()}
+
 
                             {subjects.length === 0 && !loading && (
                                 <p className="text-red-500 text-sm text-center py-2">No subjects assigned. Contact HOD.</p>
