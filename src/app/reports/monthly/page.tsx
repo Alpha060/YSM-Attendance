@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { CalendarDays, TrendingUp, TrendingDown, BarChart3, Filter, ChevronDown, AlertCircle } from 'lucide-react';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
 import { useActiveSemesters } from '@/hooks/useActiveSemesters';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 interface User {
     id: string;
@@ -59,6 +60,15 @@ function MonthlyReportContent() {
     const { getActiveSemesters, getBatchLabel } = useActiveSemesters();
 
     const getDeptType = (dept?: Department) => dept?.deptType || dept?.dept_type;
+
+    // Real-time updates
+    useRealtimeData({
+        tables: ['attendance_records'],
+        onTableChange: useCallback(() => {
+            const token = localStorage.getItem('token');
+            if (token && user) fetchMonthlyReport(token, true);
+        }, [user, selectedMonth, selectedDepartmentId, selectedSemester]),
+    });
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -153,8 +163,8 @@ function MonthlyReportContent() {
         }
     };
 
-    const fetchMonthlyReport = async (token: string) => {
-        setLoading(true);
+    const fetchMonthlyReport = async (token: string, silent = false) => {
+        if (!silent) setLoading(true);
         try {
             let url = `/api/reports/monthly?month=${selectedMonth}`;
             if (selectedDepartmentId) url += `&departmentId=${selectedDepartmentId}`;
@@ -174,7 +184,7 @@ function MonthlyReportContent() {
         } catch (err) {
             console.error('Error fetching monthly report:', err);
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
     const formatDate = (dateStr: string) => {

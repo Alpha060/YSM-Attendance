@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
 import { useActiveSemesters } from '@/hooks/useActiveSemesters';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 interface User {
     id: string;
@@ -78,6 +79,15 @@ function DailyReportContent() {
     const [lecturesSummary, setLecturesSummary] = useState<LectureSummary[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { getActiveSemesters, getBatchLabel } = useActiveSemesters();
+
+    // Real-time updates
+    useRealtimeData({
+        tables: ['attendance_records'],
+        onTableChange: useCallback(() => {
+            const token = localStorage.getItem('token');
+            if (token && user) fetchDailyReport(token, true);
+        }, [user, selectedDate, selectedDepartmentId, selectedSemester, selectedSubjectId]),
+    });
 
     // Helper to get dept type from either field name convention
     const getDeptType = (dept?: Department) => dept?.deptType || dept?.dept_type;
@@ -205,8 +215,8 @@ function DailyReportContent() {
         }
     };
 
-    const fetchDailyReport = async (token: string) => {
-        setLoading(true);
+    const fetchDailyReport = async (token: string, silent = false) => {
+        if (!silent) setLoading(true);
         try {
             let url = `/api/reports/daily?date=${selectedDate}`;
             if (selectedDepartmentId) {
@@ -241,7 +251,7 @@ function DailyReportContent() {
         } catch (err) {
             console.error('Error fetching daily report:', err);
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
     // Format date for display

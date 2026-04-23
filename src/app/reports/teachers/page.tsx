@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
 import { useActiveSemesters } from '@/hooks/useActiveSemesters';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 import * as XLSX from 'xlsx';
 
 interface User {
@@ -93,6 +94,15 @@ export default function TeacherReportPage() {
     const [showSearch, setShowSearch] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
+    // Real-time updates
+    useRealtimeData({
+        tables: ['attendance_records'],
+        onTableChange: useCallback(() => {
+            const token = localStorage.getItem('token');
+            if (token && user) fetchTeacherReport(token, true);
+        }, [user, selectedDepartmentId]),
+    });
+
     const handleLogout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -158,8 +168,8 @@ export default function TeacherReportPage() {
         }
     };
 
-    const fetchTeacherReport = async (token: string) => {
-        setLoading(true);
+    const fetchTeacherReport = async (token: string, silent = false) => {
+        if (!silent) setLoading(true);
         try {
             let url = '/api/reports/teachers';
             if (selectedDepartmentId) {
@@ -180,7 +190,7 @@ export default function TeacherReportPage() {
         } catch (err) {
             console.error('Error fetching teacher report:', err);
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
     const fetchTeacherDetail = async (teacherId: string, deptId?: string, semester?: string, dateFrom?: string, dateTo?: string) => {

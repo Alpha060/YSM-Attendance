@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 import { ArrowLeft, Users, BookOpen, AlertCircle, AlertTriangle, Building2, TrendingUp, GraduationCap, ChevronRight, FileDown, FileSpreadsheet } from 'lucide-react';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 import * as XLSX from 'xlsx';
 
 interface User {
@@ -71,6 +72,14 @@ export default function DepartmentOverviewPage() {
     const [data, setData] = useState<DepartmentData | null>(null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'semester' | 'subject' | 'critical' | 'warning'>('semester');
+
+    // Real-time updates
+    useRealtimeData({
+        tables: ['attendance_records'],
+        onTableChange: useCallback(() => {
+            if (selectedDepartmentId) fetchDepartmentData(true);
+        }, [selectedDepartmentId]),
+    });
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -166,8 +175,8 @@ export default function DepartmentOverviewPage() {
         }
     };
 
-    const fetchDepartmentData = async () => {
-        setLoading(true);
+    const fetchDepartmentData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`/api/reports/department?departmentId=${selectedDepartmentId}`, {
@@ -191,7 +200,7 @@ export default function DepartmentOverviewPage() {
             console.error('Error fetching department data:', err);
             setData(null);
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
     const getAttendanceColor = (percentage: number) => {
@@ -477,7 +486,7 @@ export default function DepartmentOverviewPage() {
                                                         <div className="w-32 hidden sm:block">
                                                             <div className="h-3 bg-gray-200/80 rounded-full overflow-hidden">
                                                                 <div 
-                                                                    className={`h-full rounded-full bg-gradient-to-r ${getProgressGradient(sem.avgAttendance)} transition-all duration-500`}
+                                                                    className={`h-full rounded-full bg-linear-to-r ${getProgressGradient(sem.avgAttendance)} transition-all duration-500`}
                                                                     style={{ width: `${Math.min(sem.avgAttendance, 100)}%` }}
                                                                 ></div>
                                                             </div>
@@ -529,7 +538,7 @@ export default function DepartmentOverviewPage() {
                                                         <div className="w-24 hidden md:block">
                                                             <div className="h-2.5 bg-gray-200/80 rounded-full overflow-hidden">
                                                                 <div 
-                                                                    className={`h-full rounded-full bg-gradient-to-r ${getProgressGradient(sub.avgAttendance)} transition-all duration-500`}
+                                                                    className={`h-full rounded-full bg-linear-to-r ${getProgressGradient(sub.avgAttendance)} transition-all duration-500`}
                                                                     style={{ width: `${Math.min(sub.avgAttendance, 100)}%` }}
                                                                 ></div>
                                                             </div>
@@ -564,7 +573,7 @@ export default function DepartmentOverviewPage() {
                                                 >
                                                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500 rounded-l-2xl"></div>
                                                     <div className="flex items-center gap-4 relative z-10 pl-2">
-                                                        <div className="w-12 h-12 rounded-full bg-red-50 flex flex-shrink-0 items-center justify-center border border-red-100">
+                                                        <div className="w-12 h-12 rounded-full bg-red-50 flex shrink-0 items-center justify-center border border-red-100">
                                                             <span className="text-lg font-bold text-red-600">{index + 1}</span>
                                                         </div>
                                                         <div>
@@ -610,7 +619,7 @@ export default function DepartmentOverviewPage() {
                                                 >
                                                     <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-500 rounded-l-2xl"></div>
                                                     <div className="flex items-center gap-4 relative z-10 pl-2">
-                                                        <div className="w-12 h-12 rounded-full bg-amber-50 flex flex-shrink-0 items-center justify-center border border-amber-100">
+                                                        <div className="w-12 h-12 rounded-full bg-amber-50 flex shrink-0 items-center justify-center border border-amber-100">
                                                             <span className="text-lg font-bold text-amber-600">{index + 1}</span>
                                                         </div>
                                                         <div>

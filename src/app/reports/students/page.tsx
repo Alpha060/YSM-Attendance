@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
 import { useActiveSemesters } from '@/hooks/useActiveSemesters';
+import { useRealtimeData } from '@/hooks/useRealtimeData';
 
 interface User {
     id: string;
@@ -128,6 +129,19 @@ function StudentReportContent() {
 
     const getDeptType = (dept?: Department) => dept?.deptType || dept?.dept_type;
 
+    const selectedSubjectsStr = Array.from(pageSelectedSubjectIds).sort().join(',');
+
+    // Real-time updates
+    useRealtimeData({
+        tables: ['attendance_records'],
+        onTableChange: useCallback(() => {
+            const token = localStorage.getItem('token');
+            if (token && user) fetchStudentReport(token, true);
+            // Also refresh open student detail popup
+            if (selectedStudentId) fetchStudentDetail(selectedStudentId, startDate, endDate, true);
+        }, [user, selectedDepartmentId, selectedSemester, selectedSubjectsStr, startDate, endDate, selectedStudentId]),
+    });
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         const userData = localStorage.getItem('user');
@@ -150,8 +164,6 @@ function StudentReportContent() {
         localStorage.removeItem('user');
         router.replace('/login');
     };
-
-    const selectedSubjectsStr = Array.from(pageSelectedSubjectIds).sort().join(',');
 
     useEffect(() => {
         if (departments.length === 1 && !selectedDepartmentId) {
@@ -258,8 +270,8 @@ function StudentReportContent() {
         }
     };
 
-    const fetchStudentReport = async (token: string) => {
-        setLoading(true);
+    const fetchStudentReport = async (token: string, silent = false) => {
+        if (!silent) setLoading(true);
         try {
             let url = '/api/reports/students';
             const params = new URLSearchParams();
@@ -289,12 +301,12 @@ function StudentReportContent() {
         } catch (err) {
             console.error('Error fetching student report:', err);
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
-    const fetchStudentDetail = async (studentId: string, startDate?: string, endDate?: string) => {
-        setLoadingDetail(true);
-        setSelectedStudentId(studentId);
+    const fetchStudentDetail = async (studentId: string, startDate?: string, endDate?: string, silent = false) => {
+        if (!silent) setLoadingDetail(true);
+        if (!silent) setSelectedStudentId(studentId);
         try {
             const token = localStorage.getItem('token');
             let url = `/api/reports/students/${studentId}`;
@@ -316,7 +328,7 @@ function StudentReportContent() {
         } catch (err) {
             console.error('Error fetching student detail:', err);
         }
-        setLoadingDetail(false);
+        if (!silent) setLoadingDetail(false);
     };
 
     // Clear date filter

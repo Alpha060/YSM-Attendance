@@ -1140,6 +1140,31 @@ export default function AttendancePage() {
                                 </select>
                             </div>
 
+                            {/* Subject selector - only when multiple subjects in same dept+semester */}
+                            {(() => {
+                                if (!selectedSemester) return null;
+                                const semSubjects = subjectsToUse.filter(s => s.subjectSemesters.includes(parseInt(selectedSemester)));
+                                if (semSubjects.length <= 1) return null;
+                                return (
+                                    <div className="mt-2">
+                                        <select
+                                            className="w-full px-3 py-2.5 bg-white border rounded-xl text-sm font-medium"
+                                            value={selectedSubjectId}
+                                            onChange={(e) => {
+                                                setSelectedSubjectId(e.target.value);
+                                                e.target.blur();
+                                            }}
+                                        >
+                                            {semSubjects.map(s => (
+                                                <option key={s.subjectId} value={s.subjectId}>
+                                                    {s.subjectName} ({s.subjectPaperCode || s.subjectCode})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                );
+                            })()}
+
                             {subjects.length === 0 && !loading && (
                                 <p className="text-red-500 text-sm text-center py-2">No subjects assigned. Contact HOD.</p>
                             )}
@@ -1382,16 +1407,46 @@ export default function AttendancePage() {
                                     />
                                 </div>
 
-                                {/* Auto-Selected Subject Display */}
+                                {/* Subject Display / Selector */}
                                 <div className="w-full sm:flex-1 sm:min-w-[180px]">
                                     <label className="block text-xs text-gray-500 mb-1">Subject</label>
-                                    <div className="p-2 bg-gray-100 rounded border text-sm text-gray-700 font-medium truncate">
-                                        {currentSubject ? (
-                                            <>{currentSubject.subjectName} ({currentSubject.subjectPaperCode || currentSubject.subjectCode})</>
-                                        ) : (
-                                            <span className="text-gray-400">Select semester...</span>
-                                        )}
-                                    </div>
+                                    {(() => {
+                                        if (!selectedSemester) {
+                                            return (
+                                                <div className="p-2 bg-gray-100 rounded border text-sm text-gray-700 font-medium truncate">
+                                                    <span className="text-gray-400">Select semester...</span>
+                                                </div>
+                                            );
+                                        }
+                                        const semSubjects = subjectsToUse.filter(s => s.subjectSemesters.includes(parseInt(selectedSemester)));
+                                        if (semSubjects.length > 1) {
+                                            return (
+                                                <select
+                                                    className="w-full p-2 border rounded bg-white text-sm font-medium"
+                                                    value={selectedSubjectId}
+                                                    onChange={(e) => {
+                                                        setSelectedSubjectId(e.target.value);
+                                                        e.target.blur();
+                                                    }}
+                                                >
+                                                    {semSubjects.map(s => (
+                                                        <option key={s.subjectId} value={s.subjectId}>
+                                                            {s.subjectName} ({s.subjectPaperCode || s.subjectCode})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            );
+                                        }
+                                        return (
+                                            <div className="p-2 bg-gray-100 rounded border text-sm text-gray-700 font-medium truncate">
+                                                {currentSubject ? (
+                                                    <>{currentSubject.subjectName} ({currentSubject.subjectPaperCode || currentSubject.subjectCode})</>
+                                                ) : (
+                                                    <span className="text-gray-400">No subject found</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Topic Input (Optional) */}

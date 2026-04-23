@@ -11,6 +11,8 @@ interface UseRealtimeDataOptions {
     enabled?: boolean;
     /** Debounce delay in ms to batch rapid changes (default: 400ms) */
     debounceMs?: number;
+    /** Polling interval in ms as fallback when SSE fails (default: 15000ms) */
+    pollingIntervalMs?: number;
 }
 
 /**
@@ -23,6 +25,7 @@ interface UseRealtimeDataOptions {
  * Features:
  * - Debounced: rapid successive changes are batched
  * - Auto-reconnects on errors (native EventSource behavior)
+ * - Polling fallback when SSE connection fails
  * - Cleans up on unmount
  * - Skips self-triggered events via a brief ignore window
  * 
@@ -42,6 +45,7 @@ export function useRealtimeData({
     onTableChange,
     enabled = true,
     debounceMs = 400,
+    pollingIntervalMs = 15000,
 }: UseRealtimeDataOptions) {
     const onTableChangeRef = useRef(onTableChange);
     onTableChangeRef.current = onTableChange;
@@ -56,6 +60,10 @@ export function useRealtimeData({
     // we briefly ignore incoming SSE events for that table to avoid double-refresh
     const ignoredTablesRef = useRef<Set<string>>(new Set());
 
+    // Track whether SSE is actually connected and receiving data
+    const sseConnectedRef = useRef(false);
+    const sseErrorCountRef = useRef(0);
+
     const cleanup = useCallback(() => {
         debounceTimers.current.forEach((timer) => clearTimeout(timer));
         debounceTimers.current.clear();
@@ -65,16 +73,40 @@ export function useRealtimeData({
         if (!enabled) return;
 
         let eventSource: EventSource | null = null;
+        let pollingTimer: NodeJS.Timeout | null = null;
+        let disposed = false;
 
         const connect = () => {
-            eventSource = new EventSource('/api/realtime');
+            if (disposed) return;
+
+            try {
+                eventSource = new EventSource('/api/realtime');
+            } catch {
+                // SSE not supported or failed to create — use polling only
+                startPolling();
+                return;
+            }
+
+            eventSource.onopen = () => {
+                sseErrorCountRef.current = 0;
+            };
 
             eventSource.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
 
-                    // Skip connection/keepalive messages
-                    if (data.type === 'connected' || data.type === 'error') return;
+                    // Connection confirmed — SSE is working
+                    if (data.type === 'connected') {
+                        sseConnectedRef.current = true;
+                        // Stop polling if SSE is confirmed working
+                        if (pollingTimer) {
+                            clearInterval(pollingTimer);
+                            pollingTimer = null;
+                        }
+                        return;
+                    }
+
+                    if (data.type === 'error') return;
 
                     const changedTable = data.table;
                     if (!changedTable) return;
@@ -101,21 +133,56 @@ export function useRealtimeData({
             };
 
             eventSource.onerror = () => {
-                // EventSource auto-reconnects, but we should clean up timers
+                // EventSource auto-reconnects, but track errors
+                sseConnectedRef.current = false;
+                sseErrorCountRef.current++;
                 cleanup();
+
+                // After 3 consecutive errors, start polling as fallback
+                if (sseErrorCountRef.current >= 3 && !pollingTimer) {
+                    startPolling();
+                }
             };
+        };
+
+        // Polling fallback: periodically trigger onTableChange
+        const startPolling = () => {
+            if (pollingTimer || disposed) return;
+            pollingTimer = setInterval(() => {
+                if (disposed) return;
+                // Only poll if SSE is not connected
+                if (!sseConnectedRef.current) {
+                    tablesRef.current.forEach((table) => {
+                        onTableChangeRef.current(table);
+                    });
+                }
+            }, pollingIntervalMs);
         };
 
         connect();
 
+        // Start polling immediately as a safety net — it will
+        // auto-stop once SSE confirms it's connected
+        const pollingStartDelay = setTimeout(() => {
+            if (!sseConnectedRef.current && !disposed) {
+                startPolling();
+            }
+        }, 5000);
+
         return () => {
+            disposed = true;
             if (eventSource) {
                 eventSource.close();
                 eventSource = null;
             }
+            if (pollingTimer) {
+                clearInterval(pollingTimer);
+                pollingTimer = null;
+            }
+            clearTimeout(pollingStartDelay);
             cleanup();
         };
-    }, [enabled, debounceMs, cleanup]);
+    }, [enabled, debounceMs, pollingIntervalMs, cleanup]);
 
     /**
      * Call this before making a mutation to temporarily ignore
