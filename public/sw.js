@@ -1,6 +1,6 @@
-const CACHE_NAME = 'ysm-attendance-v8';
-const STATIC_CACHE = 'ysm-static-v8';
-const API_CACHE = 'ysm-api-v8';
+const CACHE_NAME = 'ysm-attendance-v9';
+const STATIC_CACHE = 'ysm-static-v9';
+const API_CACHE = 'ysm-api-v9';
 const OFFLINE_QUEUE_STORE = 'offline-attendance-queue';
 
 // Static assets to pre-cache on install
@@ -12,6 +12,8 @@ const PRECACHE_URLS = [
   '/college-logo.png',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png',
+  '/icons/icon-maskable-192x192.png',
+  '/icons/icon-maskable-512x512.png',
   '/manifest.json',
 ];
 
