@@ -215,22 +215,26 @@ export async function POST(req: Request) {
 
                 const finalDegreeType = degreeType || '';
 
-                // 4. If dept is PG type, override semester using PG batch config
-                // (parseStudentId only knows regular/vocational, not PG)
+                // 4. Override semester using specific department batch config
                 let resolvedSemester = parsed.semester || 1;
-                if (parsed.admissionYear) {
-                    // Find which dept_type this student's department actually is
-                    const matchedDeptEntry = student.department_code
-                        ? departmentMap.get(student.department_code.toUpperCase())
-                        : (parsed.deptCode ? departmentMap.get(parsed.deptCode.toUpperCase()) : null);
-                    const actualDeptType = matchedDeptEntry?.deptType;
-
-                    if (actualDeptType === 'pg' && batchConfig['pg']) {
-                        // Reverse lookup PG config
-                        for (const [semStr, batchYear] of Object.entries(batchConfig['pg'])) {
+                if (parsed.admissionYear && deptId) {
+                    const deptBatchConfig = batchConfig[`dept_${deptId}`];
+                    if (deptBatchConfig) {
+                        for (const [semStr, batchYear] of Object.entries(deptBatchConfig)) {
                             if (batchYear === parsed.admissionYear) {
                                 resolvedSemester = parseInt(semStr);
                                 break;
+                            }
+                        }
+                    } else {
+                        // Fallback to legacy dept_type config if needed
+                        const actualDeptType = departmentMap.get(student.department_code?.toUpperCase() || parsed.deptCode?.toUpperCase() || '')?.deptType;
+                        if (actualDeptType && batchConfig[actualDeptType]) {
+                            for (const [semStr, batchYear] of Object.entries(batchConfig[actualDeptType])) {
+                                if (batchYear === parsed.admissionYear) {
+                                    resolvedSemester = parseInt(semStr);
+                                    break;
+                                }
                             }
                         }
                     }
