@@ -548,6 +548,7 @@ export default function StudentsPage() {
                                 studentId: selectedStudentId,
                                 subjectIds: selectedSubjects,
                                 academicYear: academicYear,
+                                semester: parseInt(formData.semester),
                                 sync: true
                             }),
                         });
@@ -598,7 +599,8 @@ export default function StudentsPage() {
                             body: JSON.stringify({
                                 studentId: newStudentId,
                                 subjectIds: selectedSubjects,
-                                academicYear: academicYear
+                                academicYear: academicYear,
+                                semester: parseInt(formData.semester)
                             }),
                         });
                         if (enrollRes.ok) successMessage += ' & Subjects assigned!';

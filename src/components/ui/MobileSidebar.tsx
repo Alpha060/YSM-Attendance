@@ -178,7 +178,7 @@ export function MobileSidebar({ isOpen, onClose, user, onLogout }: MobileSidebar
 
                 {/* Footer Actions */}
                 <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-2">
-                    {user.role === 'super_admin' && (
+                    {(user.role === 'super_admin' || user.role === 'hod') && (
                         <button
                             onClick={() => navigateTo('/settings')}
                             className={`w-full group flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200 ${pathname.startsWith('/settings')

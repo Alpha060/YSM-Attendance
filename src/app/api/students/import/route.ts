@@ -11,7 +11,7 @@ function collectSubjectEnrollments(
     finalSemester: number,
     degreeType: string,
     allSubjects: any[],
-    enrollmentBatch: { studentId: string; subjectId: string }[]
+    enrollmentBatch: { studentId: string; subjectId: string; semester: number }[]
 ) {
     const subjectInputs: { value: string; isCrossDegree: boolean }[] = [];
 
@@ -63,7 +63,7 @@ function collectSubjectEnrollments(
             );
 
             if (matchedSubject) {
-                enrollmentBatch.push({ studentId: studentDbId, subjectId: matchedSubject.id });
+                enrollmentBatch.push({ studentId: studentDbId, subjectId: matchedSubject.id, semester: finalSemester });
             }
         }
     }
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
         await client.query('BEGIN');
 
         // Collect subject enrollments for batch insert at the end
-        const enrollmentBatch: { studentId: string; subjectId: string }[] = [];
+        const enrollmentBatch: { studentId: string; subjectId: string; semester: number }[] = [];
 
         // Collect valid NEW students for batch insert
         const studentBatch: any[] = [];
@@ -358,30 +358,38 @@ export async function POST(req: Request) {
             );
         }
 
-        // Clear old subjects for existing students to ensure a full sync
+        // Clear old subjects for existing students — ONLY for the specific semester being imported
+        // This preserves historical subject data from previous semesters
         if (existingStudentsToSync.length > 0) {
-            await client.query(
-                `DELETE FROM student_subjects WHERE student_id = ANY($1) AND academic_year = $2`,
-                [existingStudentsToSync, academicYear]
-            );
+            // Group by semester so we only clear the semesters that are being re-imported
+            const semestersInBatch = new Set(enrollmentBatch
+                .filter(e => existingStudentsToSync.includes(e.studentId))
+                .map(e => e.semester));
+            
+            for (const sem of semestersInBatch) {
+                await client.query(
+                    `DELETE FROM student_subjects WHERE student_id = ANY($1) AND academic_year = $2 AND semester = $3`,
+                    [existingStudentsToSync, academicYear, sem]
+                );
+            }
         }
 
-        // Batch insert all subject enrollments in chunks of 100
+        // Batch insert all subject enrollments in chunks of 100 (with semester)
         if (enrollmentBatch.length > 0) {
             const CHUNK_SIZE = 100;
             for (let i = 0; i < enrollmentBatch.length; i += CHUNK_SIZE) {
                 const chunk = enrollmentBatch.slice(i, i + CHUNK_SIZE);
                 const values: string[] = [];
-                const params: string[] = [];
+                const params: (string | number)[] = [];
                 chunk.forEach((e, idx) => {
-                    const offset = idx * 3;
-                    values.push(`($${offset + 1}, $${offset + 2}, $${offset + 3})`);
-                    params.push(e.studentId, e.subjectId, academicYear);
+                    const offset = idx * 4;
+                    values.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`);
+                    params.push(e.studentId, e.subjectId, academicYear, e.semester);
                 });
                 await client.query(
-                    `INSERT INTO student_subjects (student_id, subject_id, academic_year)
+                    `INSERT INTO student_subjects (student_id, subject_id, academic_year, semester)
                      VALUES ${values.join(', ')}
-                     ON CONFLICT (student_id, subject_id, academic_year) DO NOTHING`,
+                     ON CONFLICT (student_id, subject_id, academic_year, semester) DO NOTHING`,
                     params
                 );
             }

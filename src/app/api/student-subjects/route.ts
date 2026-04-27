@@ -74,6 +74,13 @@ export async function GET(request: NextRequest) {
             queryStr += ` AND ss.academic_year = $${params.length}`;
         }
 
+        // By default, only show subjects for the student's current semester
+        // This hides old semester subjects from the edit popup
+        // but they remain in DB for historical reports
+        if (studentId) {
+            queryStr += ` AND (ss.semester IS NULL OR ss.semester = st.current_semester)`;
+        }
+
         queryStr += ' ORDER BY st.roll_number ASC';
 
         const enrollments = await query<StudentSubjectRow>(queryStr, params);
@@ -120,18 +127,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Access denied' }, { status: 403 });
         }
 
-        const { studentId, subjectIds, academicYear, sync } = await request.json();
+        const { studentId, subjectIds, academicYear, sync, semester } = await request.json();
 
         if (!studentId || !subjectIds || !academicYear) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // If sync is true, remove existing enrollments for this student/year first
+        // If sync is true, remove existing enrollments for this student/year/semester first
         if (sync === true) {
-            await query(
-                'DELETE FROM student_subjects WHERE student_id = $1 AND academic_year = $2',
-                [studentId, academicYear]
-            );
+            if (semester) {
+                await query(
+                    'DELETE FROM student_subjects WHERE student_id = $1 AND academic_year = $2 AND semester = $3',
+                    [studentId, academicYear, semester]
+                );
+            } else {
+                await query(
+                    'DELETE FROM student_subjects WHERE student_id = $1 AND academic_year = $2',
+                    [studentId, academicYear]
+                );
+            }
         }
 
         // Handle single or multiple subjects
@@ -141,10 +155,10 @@ export async function POST(request: NextRequest) {
         for (const subjectId of subjects) {
             try {
                 await query(
-                    `INSERT INTO student_subjects (student_id, subject_id, academic_year)
-                     VALUES ($1, $2, $3)
-                     ON CONFLICT (student_id, subject_id, academic_year) DO NOTHING`,
-                    [studentId, subjectId, academicYear]
+                    `INSERT INTO student_subjects (student_id, subject_id, academic_year, semester)
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT (student_id, subject_id, academic_year, semester) DO NOTHING`,
+                    [studentId, subjectId, academicYear, semester || 1]
                 );
                 enrolledCount++;
             } catch {

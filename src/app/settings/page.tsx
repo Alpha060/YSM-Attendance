@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
-import { Building2, Save, AlertTriangle, ArrowRightCircle, RotateCcw, Mail, Eye, EyeOff, ToggleLeft, ToggleRight, CheckCircle, Shield, Send, Loader2 } from 'lucide-react';
+import { Building2, Save, AlertTriangle, ArrowRightCircle, RotateCcw, Mail, Eye, EyeOff, ToggleLeft, ToggleRight, CheckCircle, Shield, Send, Loader2, ChevronDown } from 'lucide-react';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { AccessDenied } from '@/components/ui/access-denied';
 
@@ -13,6 +13,7 @@ interface User {
     lastName: string;
     email: string;
     role: string;
+    departmentId?: string;
 }
 
 type DeptType = 'regular' | 'vocational' | 'pg';
@@ -22,15 +23,21 @@ export default function SettingsPage() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'email' | 'batch'>('email');
+    const [activeTab, setActiveTab] = useState<'email' | 'batch'>('batch');
 
     // Batch Manager State
     const [selectedDeptType, setSelectedDeptType] = useState<DeptType>('regular');
     const [batchMappings, setBatchMappings] = useState<Record<number, string>>({});
     const [isSaving, setIsSaving] = useState(false);
     const [loadingMappings, setLoadingMappings] = useState(false);
+    const [hodDepartments, setHodDepartments] = useState<{ id: string; name: string; code: string; deptType: DeptType }[]>([]);
+    const [selectedHodDeptIds, setSelectedHodDeptIds] = useState<Set<string>>(new Set());
     const [refetchTrigger, setRefetchTrigger] = useState(0);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    // Admin: all departments and selected departments (multi-select)
+    const [allDepartments, setAllDepartments] = useState<{ id: string; name: string; code: string; deptType: DeptType }[]>([]);
+    const [selectedAdminDeptIds, setSelectedAdminDeptIds] = useState<Set<string>>(new Set());
+    const [selectedDeptId, setSelectedDeptId] = useState<string>('');
 
     // ── Email Automation State ──
     const [emailAddress, setEmailAddress] = useState('');
@@ -55,20 +62,61 @@ export default function SettingsPage() {
         try {
             const parsedUser = JSON.parse(userData);
             setUser(parsedUser);
+
+            // If HOD, fetch their departments
+            if (parsedUser.role === 'hod') {
+                fetch('/api/me/departments', {
+                    headers: { Authorization: `Bearer ${token}` },
+                }).then(r => r.json()).then(data => {
+                    const depts = (data.departments || []).map((d: any) => ({
+                        id: d.id,
+                        name: d.name,
+                        code: d.code || '',
+                        deptType: (d.deptType || d.dept_type || 'regular') as DeptType,
+                    }));
+                    setHodDepartments(depts);
+                    setSelectedHodDeptIds(new Set(depts.map((d: any) => d.id)));
+                    if (depts.length > 0) {
+                        setSelectedDeptType(depts[0].deptType);
+                        setSelectedDeptId(depts[0].id);
+                    }
+                }).catch(() => {});
+            }
+
+            // If admin, fetch all departments
+            if (parsedUser.role === 'super_admin') {
+                fetch('/api/departments', {
+                    headers: { Authorization: `Bearer ${token}` },
+                }).then(r => r.json()).then(data => {
+                    const depts = (data.departments || []).map((d: any) => ({
+                        id: d.id,
+                        name: d.name,
+                        code: d.code || '',
+                        deptType: (d.deptType || d.dept_type || 'regular') as DeptType,
+                    }));
+                    setAllDepartments(depts);
+                    if (depts.length > 0) {
+                        setSelectedAdminDeptIds(new Set(depts.map((d: any) => d.id)));
+                        setSelectedDeptId(depts[0].id);
+                        setSelectedDeptType(depts[0].deptType);
+                    }
+                }).catch(() => {});
+            }
         } catch {
             router.replace('/login');
         }
         setLoading(false);
     }, [router]);
 
-    // Fetch batch mappings when dept type changes
+    // Fetch batch mappings when selected department changes
     useEffect(() => {
         const fetchCurrentMappings = async () => {
             if (!user) return;
-            if (user.role !== 'super_admin') return;
+            if (!['super_admin', 'hod'].includes(user.role)) return;
+            if (!selectedDeptId) return;
             setLoadingMappings(true);
             try {
-                const response = await fetch(`/api/settings/batch-upgrade?deptType=${selectedDeptType}`, {
+                const response = await fetch(`/api/settings/batch-upgrade?departmentId=${selectedDeptId}`, {
                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                 });
                 if (response.ok) {
@@ -79,17 +127,15 @@ export default function SettingsPage() {
                     const semCount = (selectedDeptType === 'vocational' || selectedDeptType === 'pg') ? 6 : 8;
 
                     if (data.mappings && Object.keys(data.mappings).length > 0) {
-                        // Saved config exists — only load saved values.
-                        // Semesters intentionally left blank stay blank.
                         for (let i = 1; i <= semCount; i++) {
                             const saved = data.mappings[i.toString()];
                             stringMappings[i] = saved ? String(saved) : '';
                         }
                     } else {
-                        // No saved config yet (first time) — prefill with calculated defaults
+                        // No saved config yet — prefill with calculated defaults
                         const currentDate = new Date();
                         const currentYear = currentDate.getFullYear();
-                        const isNewAcademicYear = currentDate.getMonth() >= 6; // July or later
+                        const isNewAcademicYear = currentDate.getMonth() >= 6;
 
                         for (let i = 1; i <= semCount; i++) {
                             const yearIndex = Math.floor((i - 1) / 2);
@@ -108,7 +154,7 @@ export default function SettingsPage() {
         };
 
         fetchCurrentMappings();
-    }, [selectedDeptType, user, refetchTrigger]);
+    }, [selectedDeptId, selectedDeptType, user, refetchTrigger]);
 
     // ── Fetch Email Config ──
     useEffect(() => {
@@ -203,6 +249,17 @@ export default function SettingsPage() {
         setMessage(null);
 
         try {
+            // Determine which department IDs to upgrade
+            const targetDeptIds = isHod
+                ? Array.from(selectedHodDeptIds)
+                : Array.from(selectedAdminDeptIds);
+
+            if (targetDeptIds.length === 0) {
+                setMessage({ type: 'error', text: 'Please select a department' });
+                setIsSaving(false);
+                return;
+            }
+
             const response = await fetch('/api/settings/batch-upgrade', {
                 method: 'POST',
                 headers: {
@@ -210,9 +267,9 @@ export default function SettingsPage() {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
                 body: JSON.stringify({
-                    deptType: selectedDeptType,
                     mappings: validMappings,
-                    fullConfig: fullConfig
+                    fullConfig: fullConfig,
+                    departmentIds: targetDeptIds
                 })
             });
 
@@ -279,9 +336,11 @@ export default function SettingsPage() {
         );
     }
 
-    if (user.role !== 'super_admin') {
+    if (user.role !== 'super_admin' && user.role !== 'hod') {
         return <AccessDenied />;
     }
+
+    const isHod = user.role === 'hod';
 
     const semestersCount = getSemestersCount(selectedDeptType);
 
@@ -300,11 +359,12 @@ export default function SettingsPage() {
                 <div className="max-w-4xl mx-auto">
 
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Platform Settings</h1>
-                        <p className="text-gray-500">Configure global platform configurations and perform batch overrides.</p>
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{isHod ? 'Department Settings' : 'Platform Settings'}</h1>
+                        <p className="text-gray-500">{isHod ? 'Manage semester configuration for your department.' : 'Configure global platform configurations and perform batch overrides.'}</p>
                     </div>
 
                     {/* Navigation Cards (Dashboard Style) */}
+                    {!isHod && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                         <div
                             onClick={() => setActiveTab('email')}
@@ -338,11 +398,12 @@ export default function SettingsPage() {
                             </div>
                         </div>
                     </div>
+                    )}
 
                     {/* ═══════════════════════════════════════════════════════════
                         Email Automation Section
                     ═══════════════════════════════════════════════════════════ */}
-                    {activeTab === 'email' && (
+                    {activeTab === 'email' && !isHod && (
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
                             <div className="p-4 sm:p-6 border-b border-gray-100 bg-linear-to-r from-blue-50/80 to-indigo-50/50">
                                 <div className="flex items-center gap-3 mb-2">
@@ -515,33 +576,120 @@ export default function SettingsPage() {
 
                             <div className="p-4 sm:p-6">
                                 {message && (
-                                    <div className={`p-4 rounded-xl mb-6 text-sm flex items-start gap-3 ${message.type === 'error' ? 'bg-red-50 text-red-800 border bg-red-100' : 'bg-green-50 text-green-800 border border-green-200'
+                                    <div className={`p-4 rounded-xl mb-6 text-sm flex items-start gap-3 ${message.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-green-50 text-green-800 border border-green-200'
                                         }`}>
                                         {message.type === 'error' ? <AlertTriangle className="w-5 h-5 shrink-0" /> : <Save className="w-5 h-5 shrink-0" />}
                                         <p className="font-medium mt-0.5">{message.text}</p>
                                     </div>
                                 )}
 
-                                {/* Dept Type Selector */}
+                                {/* Department Selector — for super_admin (multi-select chips) */}
+                                {!isHod && allDepartments.length > 0 && (
                                 <div className="mb-6 sm:mb-8">
-                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Department Structure</label>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Select Departments</label>
                                     <div className="flex flex-wrap gap-2">
-                                        {(['regular', 'vocational', 'pg'] as DeptType[]).map((type) => (
-                                            <button
-                                                key={type}
-                                                onClick={() => { setSelectedDeptType(type); setBatchMappings({}); }}
-                                                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-colors ${selectedDeptType === type
-                                                    ? 'bg-blue-600 text-white shadow-sm'
-                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                    }`}
-                                            >
-                                                <span className="block sm:inline">{type.charAt(0).toUpperCase() + type.slice(1)}</span>{' '}
-                                                <span className="opacity-75 tracking-tight hidden sm:inline">({getSemestersCount(type)} Semesters)</span>
-                                                <span className="opacity-75 tracking-tight sm:hidden text-[10px]">({getSemestersCount(type)} Sems)</span>
-                                            </button>
-                                        ))}
+                                        {allDepartments.map((dept) => {
+                                            const isSelected = selectedAdminDeptIds.has(dept.id);
+                                            return (
+                                                <button
+                                                    key={dept.id}
+                                                    onClick={() => {
+                                                        setSelectedAdminDeptIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(dept.id) && next.size > 1) {
+                                                                next.delete(dept.id);
+                                                            } else {
+                                                                next.add(dept.id);
+                                                            }
+                                                            const firstSelected = allDepartments.find(d => next.has(d.id));
+                                                            if (firstSelected) {
+                                                                setSelectedDeptType(firstSelected.deptType);
+                                                                setSelectedDeptId(firstSelected.id);
+                                                            }
+                                                            return next;
+                                                        });
+                                                        setBatchMappings({});
+                                                    }}
+                                                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all border ${isSelected
+                                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                                                        }`}
+                                                >
+                                                    <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected
+                                                        ? 'bg-white border-white'
+                                                        : 'border-gray-300 bg-white'
+                                                        }`}>
+                                                        {isSelected && (
+                                                            <svg className="w-2.5 h-2.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    {dept.code}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
+                                    <p className="text-[10px] text-gray-400 mt-1.5">
+                                        {selectedAdminDeptIds.size === allDepartments.length
+                                            ? 'All departments selected — upgrade will apply to all students'
+                                            : `${selectedAdminDeptIds.size} of ${allDepartments.length} selected`}
+                                    </p>
                                 </div>
+                                )}
+                                {isHod && hodDepartments.length > 0 && (
+                                    <div className="mb-6 sm:mb-8">
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Your Departments</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {hodDepartments.map((dept) => {
+                                                const isSelected = selectedHodDeptIds.has(dept.id);
+                                                return (
+                                                    <button
+                                                        key={dept.id}
+                                                        onClick={() => {
+                                                            setSelectedHodDeptIds(prev => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(dept.id) && next.size > 1) {
+                                                                    next.delete(dept.id);
+                                                                } else {
+                                                                    next.add(dept.id);
+                                                                }
+                                                                // Update deptType from first selected
+                                                                const firstSelected = hodDepartments.find(d => next.has(d.id));
+                                                                if (firstSelected) {
+                                                                    setSelectedDeptType(firstSelected.deptType);
+                                                                    setSelectedDeptId(firstSelected.id);
+                                                                }
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all border ${isSelected
+                                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                            : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                                                            }`}
+                                                    >
+                                                        <div className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isSelected
+                                                            ? 'bg-white border-white'
+                                                            : 'border-gray-300 bg-white'
+                                                            }`}>
+                                                            {isSelected && (
+                                                                <svg className="w-2.5 h-2.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                        {dept.code || dept.name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 mt-1.5">
+                                            {selectedHodDeptIds.size === hodDepartments.length
+                                                ? 'All departments selected — upgrade will apply to all your students'
+                                                : `${selectedHodDeptIds.size} of ${hodDepartments.length} selected`}
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* Semester Inputs */}
                                 <div className="bg-gray-50 rounded-xl p-4 sm:p-6 border border-gray-100 mb-6">

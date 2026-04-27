@@ -85,8 +85,9 @@ CREATE TABLE IF NOT EXISTS student_subjects (
     student_id UUID REFERENCES students(id) ON DELETE CASCADE,
     subject_id UUID REFERENCES subjects(id) ON DELETE CASCADE,
     academic_year VARCHAR(20) NOT NULL,
+    semester INTEGER DEFAULT 1,
     enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(student_id, subject_id, academic_year)
+    CONSTRAINT student_subjects_unique_with_semester UNIQUE(student_id, subject_id, academic_year, semester)
 );
 
 -- Attendance Records (Per-lecture attendance)
@@ -156,6 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_students_roll_number ON students(roll_number);
 
 -- Student-subjects table
 CREATE INDEX IF NOT EXISTS idx_student_subjects_subject_id ON student_subjects(subject_id);
+CREATE INDEX IF NOT EXISTS idx_student_subjects_semester ON student_subjects(semester);
 
 -- Attendance records table
 CREATE INDEX IF NOT EXISTS idx_attendance_teacher_date ON attendance_records(teacher_id, date);

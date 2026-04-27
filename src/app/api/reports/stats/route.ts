@@ -199,6 +199,7 @@ export async function GET(request: NextRequest) {
                             ) as attendance_pct
                         FROM students s
                         LEFT JOIN attendance_records ar ON ar.student_id = s.id
+                            AND ar.subject_id IN (SELECT ss.subject_id FROM student_subjects ss WHERE ss.student_id = s.id AND (ss.semester = s.current_semester OR ss.semester IS NULL))
                         WHERE 1=1 ${studentFilter}
                         GROUP BY s.id
                         HAVING COUNT(ar.id) > 0
@@ -242,6 +243,7 @@ export async function GET(request: NextRequest) {
                         FROM departments d
                         LEFT JOIN students s ON s.department_id = d.id
                         LEFT JOIN attendance_records ar ON ar.student_id = s.id
+                            AND ar.subject_id IN (SELECT ss2.subject_id FROM student_subjects ss2 WHERE ss2.student_id = s.id AND (ss2.semester = s.current_semester OR ss2.semester IS NULL))
                         GROUP BY d.id, d.name
                         ORDER BY d.name
                     `;

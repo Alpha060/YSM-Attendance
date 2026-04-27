@@ -59,6 +59,7 @@ export async function GET(
         const { searchParams } = new URL(request.url);
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
+        const reportSemester = searchParams.get('reportSemester'); // historical semester view
 
         // Allow HOD to view as teacher (for My Reports)
         const view = searchParams.get('view');
@@ -115,10 +116,36 @@ export async function GET(
             subjectJoinClause = `JOIN teacher_subjects ts ON ts.subject_id = s.id AND ts.teacher_id = $${uIdIndex}`;
         }
 
+        // Determine the semester to filter subjects by
+        // Default to student's current_semester so we only show current data
+        const studentCurrentSem = studentInfo[0].current_semester;
+        const targetSemester = reportSemester ? parseInt(reportSemester) : studentCurrentSem;
+
+        // Build semester filter for student_subjects
+        let semesterFilterClause = '';
+        const semesterFilterParams: (string | number)[] = [];
+        if (targetSemester) {
+            semesterFilterParams.push(targetSemester);
+            const semParamIdx = 1 + dateParams.length + (effectiveRole === 'teacher' ? 1 : 0) + semesterFilterParams.length;
+            // Also match NULL semester (pre-migration rows) when viewing current semester
+            if (targetSemester === studentCurrentSem) {
+                semesterFilterClause = ` AND (ss.semester = $${semParamIdx} OR ss.semester IS NULL)`;
+            } else {
+                semesterFilterClause = ` AND ss.semester = $${semParamIdx}`;
+            }
+        }
+
         // Get subject-wise stats with date filter
-        const subjectStatsParams = [studentId, ...dateParams];
+        const subjectStatsParams: (string | number)[] = [studentId, ...dateParams];
         if (effectiveRole === 'teacher') {
             subjectStatsParams.push(userId);
+        }
+        subjectStatsParams.push(...semesterFilterParams);
+
+        // Also filter attendance_records by semester when viewing history
+        let arSemesterFilter = '';
+        if (targetSemester) {
+            arSemesterFilter = ` AND ar.semester = ${targetSemester}`;
         }
 
         const subjectStats = await query<SubjectStats>(
@@ -140,8 +167,8 @@ export async function GET(
              FROM student_subjects ss
              JOIN subjects s ON s.id = ss.subject_id
              ${subjectJoinClause}
-             LEFT JOIN attendance_records ar ON ar.subject_id = s.id AND ar.student_id = $1 ${dateFilter}
-             WHERE ss.student_id = $1
+             LEFT JOIN attendance_records ar ON ar.subject_id = s.id AND ar.student_id = $1 ${dateFilter}${arSemesterFilter}
+             WHERE ss.student_id = $1${semesterFilterClause}
              GROUP BY s.id, s.name, s.code, s.paper_code
              ORDER BY s.name`,
             subjectStatsParams
@@ -162,7 +189,7 @@ export async function GET(
                 ) as attendance_pct
              FROM attendance_records ar
              WHERE ar.student_id = $1 
-               AND ar.subject_id IN (SELECT subject_id FROM student_subjects WHERE student_id = $1)`;
+               AND ar.subject_id IN (SELECT subject_id FROM student_subjects WHERE student_id = $1${targetSemester ? ` AND semester = ${targetSemester}` : ''})`;
 
         if (effectiveRole === 'teacher') {
             monthlyQuery += ` AND ${teacherSubjectFilter}`;
@@ -200,7 +227,7 @@ export async function GET(
                 ) as attendance_pct
              FROM attendance_records ar
              WHERE ar.student_id = $1 
-               AND ar.subject_id IN (SELECT subject_id FROM student_subjects WHERE student_id = $1) ${dateFilter}`;
+               AND ar.subject_id IN (SELECT subject_id FROM student_subjects WHERE student_id = $1${targetSemester ? ` AND semester = ${targetSemester}` : ''}) ${dateFilter}`;
 
         if (effectiveRole === 'teacher') {
             overallQuery += ` AND ${teacherSubjectFilter}`;
@@ -211,7 +238,14 @@ export async function GET(
             otherStatsParams
         );
 
-
+        // Get all semesters this student has subject enrollments for (for history dropdown)
+        // Include NULL semester rows as current_semester (pre-migration data)
+        const availableSems = await query<{ semester: number }>(
+            `SELECT DISTINCT COALESCE(semester, $2) as semester 
+             FROM student_subjects WHERE student_id = $1 
+             ORDER BY semester`,
+            [studentId, studentInfo[0].current_semester]
+        );
 
         const student = studentInfo[0];
         const overall = overallStats[0] || { total_classes: '0', attended: '0', attendance_pct: '0' };
@@ -248,7 +282,13 @@ export async function GET(
             })),
 
             // Include the date range in response for reference
-            dateRange: startDate && endDate ? { startDate, endDate } : null
+            dateRange: startDate && endDate ? { startDate, endDate } : null,
+
+            // Include reportSemester so frontend knows which semester is being viewed
+            reportSemester: targetSemester || student.current_semester,
+
+            // Available semesters this student has subject data for (for history dropdown)
+            availableSemesters: availableSems.map(r => r.semester).filter(Boolean).sort((a, b) => a - b)
         });
     } catch (error) {
         console.error('Student detail error:', error);

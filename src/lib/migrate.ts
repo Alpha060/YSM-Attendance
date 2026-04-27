@@ -173,6 +173,49 @@ const MIGRATIONS: { name: string; sql: string }[] = [
             );
         `
     },
+    {
+        name: '007_student_subjects_semester',
+        sql: `
+            -- Add semester column to student_subjects for historical tracking
+            -- This lets us keep old semester subjects intact when students are upgraded
+            ALTER TABLE student_subjects ADD COLUMN IF NOT EXISTS semester INTEGER;
+
+            -- Backfill semester from student's current_semester
+            UPDATE student_subjects ss
+            SET semester = s.current_semester
+            FROM students s
+            WHERE ss.student_id = s.id AND ss.semester IS NULL;
+
+            -- Default to 1 for future inserts if not specified
+            ALTER TABLE student_subjects ALTER COLUMN semester SET DEFAULT 1;
+
+            -- Drop old unique constraint and add new one that includes semester
+            -- This allows same student+subject in different semesters
+            DO $$
+            BEGIN
+                -- Try dropping old constraints
+                ALTER TABLE student_subjects
+                    DROP CONSTRAINT IF EXISTS student_subjects_student_id_subject_id_academic_year_key;
+            EXCEPTION WHEN OTHERS THEN
+                NULL;
+            END $$;
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint 
+                    WHERE conname = 'student_subjects_unique_with_semester'
+                ) THEN
+                    ALTER TABLE student_subjects 
+                        ADD CONSTRAINT student_subjects_unique_with_semester 
+                        UNIQUE(student_id, subject_id, academic_year, semester);
+                END IF;
+            END $$;
+
+            -- Index for fast semester-based lookups
+            CREATE INDEX IF NOT EXISTS idx_student_subjects_semester ON student_subjects(semester);
+        `
+    },
 ];
 
 export async function runMigrations() {

@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
                 ) as avg_attendance
             FROM students s
             LEFT JOIN attendance_records ar ON ar.student_id = s.id
+                AND ar.subject_id IN (SELECT ss.subject_id FROM student_subjects ss WHERE ss.student_id = s.id AND (ss.semester = s.current_semester OR ss.semester IS NULL))
             WHERE s.department_id = $1
             GROUP BY s.current_semester
             ORDER BY s.current_semester`,
@@ -133,7 +134,7 @@ export async function GET(request: NextRequest) {
                     0
                 ) as avg_attendance
             FROM subjects sub
-            LEFT JOIN student_subjects ss ON ss.subject_id = sub.id
+            LEFT JOIN student_subjects ss ON ss.subject_id = sub.id AND (ss.semester IS NULL OR ss.semester = (SELECT current_semester FROM students WHERE id = ss.student_id))
             LEFT JOIN students st ON ss.student_id = st.id AND st.department_id = $1
             LEFT JOIN attendance_records ar ON ar.subject_id = sub.id AND ar.student_id = st.id
             WHERE sub.degree_type = $2
@@ -160,6 +161,7 @@ export async function GET(request: NextRequest) {
                 ) as attendance_pct
             FROM students s
             LEFT JOIN attendance_records ar ON ar.student_id = s.id
+                AND ar.subject_id IN (SELECT ss.subject_id FROM student_subjects ss WHERE ss.student_id = s.id AND (ss.semester = s.current_semester OR ss.semester IS NULL))
             WHERE s.department_id = $1
             GROUP BY s.id, s.student_id, s.roll_number, s.first_name, s.last_name, s.current_semester
             HAVING COUNT(ar.id) > 0 AND 
@@ -194,6 +196,7 @@ export async function GET(request: NextRequest) {
                 ) as attendance_pct
             FROM students s
             LEFT JOIN attendance_records ar ON ar.student_id = s.id
+                AND ar.subject_id IN (SELECT ss.subject_id FROM student_subjects ss WHERE ss.student_id = s.id AND (ss.semester = s.current_semester OR ss.semester IS NULL))
             WHERE s.department_id = $1
             GROUP BY s.id, s.student_id, s.roll_number, s.first_name, s.last_name, s.current_semester
             HAVING COUNT(ar.id) > 0 AND 

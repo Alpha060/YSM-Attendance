@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         const subjectIdsParam = searchParams.get('subjectIds'); // allows comma-separated string
         const departmentId = searchParams.get('departmentId');
         const semester = searchParams.get('semester');
+        const originSemester = searchParams.get('originSemester');
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
 
@@ -79,9 +80,43 @@ export async function GET(request: NextRequest) {
             filters.push(`s.department_id = $${params.length}`);
         }
 
+        // Track department filter params separately for availableSemesters query
+        const deptFilterParams = [...params];
+        const deptFilters = [...filters];
+
+        // Determine if this is a historical semester query
+        // A historical semester = semester that exists in student_subjects but not as any student's current_semester
+        let isHistorical = false;
+        let semesterNum = 0;
+
         if (semester) {
-            params.push(parseInt(semester));
-            filters.push(`s.current_semester = $${params.length}`);
+            semesterNum = parseInt(semester);
+            // Check if any students in this department currently have this semester
+            const currentCheck = await query<{ count: string }>(
+                `SELECT COUNT(*) as count FROM students s 
+                 LEFT JOIN departments d ON d.id = s.department_id
+                 WHERE s.current_semester = $${deptFilterParams.length + 1} 
+                 ${deptFilters.length > 0 ? 'AND ' + deptFilters.join(' AND ') : ''}`,
+                [...deptFilterParams, semesterNum]
+            );
+            const hasCurrentStudents = parseInt(currentCheck[0]?.count || '0') > 0;
+
+            if (hasCurrentStudents) {
+                // Normal: filter by current_semester
+                params.push(semesterNum);
+                filters.push(`s.current_semester = $${params.length}`);
+            } else {
+                // Historical: find students who have student_subjects with this semester
+                isHistorical = true;
+                params.push(semesterNum);
+                filters.push(`s.id IN (SELECT ss_hist.student_id FROM student_subjects ss_hist WHERE ss_hist.semester = $${params.length})`);
+
+                // Scope to same batch: only students whose current_semester matches the origin
+                if (originSemester) {
+                    params.push(parseInt(originSemester));
+                    filters.push(`s.current_semester = $${params.length}`);
+                }
+            }
         }
 
         // Subject filter
@@ -111,17 +146,22 @@ export async function GET(request: NextRequest) {
         // For teachers, we also need to filter the COUNTs to only their subjects/records
         let teacherSubjectFilter = '1=1';
         if (role === 'teacher' && !subjectIdsParam) {
-            // finding the param index for userId
             let uIdIndex = params.indexOf(userId);
             if (uIdIndex === -1) {
                 params.push(userId);
                 uIdIndex = params.length - 1;
             }
-            // OLD: Filter by subject assignment
-            // teacherSubjectFilter = `ar.subject_id IN (SELECT subject_id FROM teacher_subjects WHERE teacher_id = $${uIdIndex + 1})`;
-
-            // NEW: Filter by who marked the attendance AND only include subjects they are assigned to teach
             teacherSubjectFilter = `ar.teacher_id = $${uIdIndex + 1} AND ar.subject_id IN (SELECT subject_id FROM teacher_subjects WHERE teacher_id = $${uIdIndex + 1})`;
+        }
+
+        // Build the subject scope for attendance counting
+        let subjectScopeClause: string;
+        if (isHistorical) {
+            // Historical: only count attendance for subjects from that specific semester
+            subjectScopeClause = `ss.semester = ${semesterNum}`;
+        } else {
+            // Current: count attendance for current semester subjects
+            subjectScopeClause = `(ss.semester = s.current_semester OR ss.semester IS NULL)`;
         }
 
         const queryStr = `
@@ -137,7 +177,7 @@ export async function GET(request: NextRequest) {
                 COUNT(DISTINCT CASE WHEN ar.status = 'present' THEN ar.date::text || '-' || ar.subject_id::text || '-' || ar.lecture_number::text END) as attended
             FROM students s
             LEFT JOIN departments d ON d.id = s.department_id
-            LEFT JOIN attendance_records ar ON ar.student_id = s.id AND ar.subject_id IN (SELECT ss.subject_id FROM student_subjects ss WHERE ss.student_id = s.id) AND (${teacherSubjectFilter})
+            LEFT JOIN attendance_records ar ON ar.student_id = s.id AND ar.subject_id IN (SELECT ss.subject_id FROM student_subjects ss WHERE ss.student_id = s.id AND ${subjectScopeClause}) AND (${teacherSubjectFilter})
             WHERE 1=1
             ${filterClause}
             GROUP BY s.id, s.student_id, s.roll_number, s.first_name, s.last_name, d.name, s.current_semester
@@ -145,6 +185,34 @@ export async function GET(request: NextRequest) {
         `;
 
         const students = await query<StudentData>(queryStr, params);
+
+        // Get current semesters (from students table)
+        const deptFilterClause = deptFilters.length > 0 ? 'AND ' + deptFilters.join(' AND ') : '';
+        const currentSemRows = await query<{ current_semester: number }>(
+            `SELECT DISTINCT s.current_semester FROM students s 
+             LEFT JOIN departments d ON d.id = s.department_id
+             WHERE 1=1 ${deptFilterClause}
+             ORDER BY s.current_semester`,
+            deptFilterParams
+        );
+        const currentSemesters = currentSemRows.map(r => r.current_semester);
+
+        // Get historical semesters (from student_subjects, excluding current semesters)
+        const deptFilterClause2 = deptFilterClause.replace(/(?<![a-zA-Z_])s\./g, 's2.');
+        const histSemRows = await query<{ semester: number }>(
+            `SELECT DISTINCT COALESCE(ss.semester, s2.current_semester) as semester
+             FROM student_subjects ss
+             JOIN students s2 ON s2.id = ss.student_id
+             LEFT JOIN departments d ON d.id = s2.department_id
+             WHERE 1=1 ${deptFilterClause2}
+             AND COALESCE(ss.semester, s2.current_semester) IS NOT NULL
+             ORDER BY semester`,
+            deptFilterParams
+        );
+        const allSubjectSems = histSemRows.map(r => r.semester);
+        // Historical = semesters in student_subjects that are NOT any student's current_semester in this dept
+        const currentSet = new Set(currentSemesters);
+        const historicalSemesters = allSubjectSems.filter(s => !currentSet.has(s));
 
         const formattedStudents = students.map(s => ({
             id: s.id,
@@ -160,7 +228,12 @@ export async function GET(request: NextRequest) {
                 : 0
         }));
 
-        return NextResponse.json({ students: formattedStudents });
+        return NextResponse.json({ 
+            students: formattedStudents,
+            currentSemesters,
+            historicalSemesters,
+            isHistorical
+        });
     } catch (error) {
         console.error('Student report error:', error);
         return NextResponse.json({ error: 'Server error' }, { status: 500 });
