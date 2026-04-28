@@ -80,7 +80,7 @@ export default function StudentsPage() {
     const [showModal, setShowModal] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [batchConfig, setBatchConfig] = useState<Record<string, Record<string, number>>>({});
-    const { getActiveSemesters, getBatchLabel } = useActiveSemesters();
+    const { getActiveSemesters, getActiveSemestersByDept, getBatchLabel } = useActiveSemesters();
 
     const getDeptType = (dept?: Department) => dept?.deptType || dept?.dept_type;
 
@@ -971,6 +971,7 @@ export default function StudentsPage() {
                                     onChange={(e) => {
                                         setFilterDeptType(e.target.value);
                                         setFilterDepartmentId(''); // Reset department when type changes
+                                        setFilterSemester(''); // Reset semester when type changes
                                     }}
                                 >
                                     <option value="">All Types</option>
@@ -986,7 +987,7 @@ export default function StudentsPage() {
                                 <select
                                     className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none cursor-pointer"
                                     value={filterDepartmentId}
-                                    onChange={(e) => setFilterDepartmentId(e.target.value)}
+                                    onChange={(e) => { setFilterDepartmentId(e.target.value); setFilterSemester(''); }}
                                 >
                                     <option value="">All Departments</option>
                                     {departments
@@ -1006,9 +1007,13 @@ export default function StudentsPage() {
                             >
                                 <option value="">All Semesters</option>
                                 {(() => {
-                                    const effectiveDeptType = filterDeptType || (filterDepartmentId ? getDeptType(departments.find(d => d.id === filterDepartmentId)) : (isSuperAdmin ? 'regular' : (departments.length > 0 ? getDeptType(departments[0]) : 'regular')));
-                                    return getActiveSemesters(effectiveDeptType).map(s => {
-                                        const label = getBatchLabel(s, effectiveDeptType);
+                                    const effectiveDept = filterDepartmentId 
+                                        ? departments.find(d => d.id === filterDepartmentId)
+                                        : (isSuperAdmin ? undefined : (departments.length > 0 ? departments[0] : undefined));
+                                    const effectiveDeptType = filterDeptType || getDeptType(effectiveDept) || 'regular';
+                                    const effectiveDeptId = effectiveDept?.id;
+                                    return getActiveSemestersByDept(effectiveDeptId, effectiveDeptType).map(s => {
+                                        const label = getBatchLabel(s, effectiveDeptType, effectiveDeptId);
                                         return <option key={s} value={s}>Sem {s}{label ? ` (${label})` : ''}</option>;
                                     });
                                 })()}

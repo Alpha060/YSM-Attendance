@@ -76,7 +76,7 @@ export default function MyPerformancePage() {
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
 
-    const { getBatchLabel, getActiveSemesters } = useActiveSemesters();
+    const { getBatchLabel, getActiveSemesters, getActiveSemestersByDept } = useActiveSemesters();
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -460,7 +460,7 @@ export default function MyPerformancePage() {
                 </div>
                 <div class="meta-values">
                     <div class="meta-row"><strong>Department:</strong> ${deptFilter ? data.filters.departments.find(d => d.id === deptFilter)?.name : 'All Departments'}</div>
-                    <div class="meta-row"><strong>Semester:</strong> ${semesterFilter ? (() => { const dept = data.filters.departments.find(d => d.id === deptFilter); const label = getBatchLabel(parseInt(semesterFilter), dept?.deptType); return `Semester ${semesterFilter}${label ? ` (${label})` : ''}`; })() : 'All Semesters'}</div>
+                    <div class="meta-row"><strong>Semester:</strong> ${semesterFilter ? (() => { const dept = data.filters.departments.find(d => d.id === deptFilter); const label = getBatchLabel(parseInt(semesterFilter), dept?.deptType, dept?.id); return `Semester ${semesterFilter}${label ? ` (${label})` : ''}`; })() : 'All Semesters'}</div>
                     ${subjects.length === 1 ? `<div class="meta-row"><strong>Subject:</strong> ${subjects[0].name} (${subjects[0].paperCode || subjects[0].code})</div>` : ''}
                     ${dateFrom || dateTo ? `<div class="meta-row"><strong>Period:</strong> ${dateFrom || 'Start'} to ${dateTo || 'Present'}</div>` : ''}
                     <div class="meta-row"><strong>Date:</strong> ${new Date().toLocaleDateString()}</div>
@@ -642,7 +642,7 @@ export default function MyPerformancePage() {
                                     <div className="flex flex-col gap-1">
                                         <select
                                             value={deptFilter}
-                                            onChange={(e) => setDeptFilter(e.target.value)}
+                                            onChange={(e) => { setDeptFilter(e.target.value); setSemesterFilter(''); }}
                                             className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                         >
                                             <option value="">All My Departments</option>
@@ -664,27 +664,23 @@ export default function MyPerformancePage() {
                                                 .filter(sem => {
                                                     if (deptFilter) {
                                                         const selectedDept = data.filters.departments.find(d => d.id === deptFilter);
-                                                        const activeSemesters = getActiveSemesters(selectedDept?.deptType);
-                                                        return activeSemesters.includes(sem);
+                                                        return getActiveSemestersByDept(selectedDept?.id, selectedDept?.deptType).includes(sem);
                                                     } else {
-                                                        return data.filters.departments.some(dept => {
-                                                            const activeSemesters = getActiveSemesters(dept.deptType);
-                                                            return activeSemesters.includes(sem);
-                                                        });
+                                                        return data.filters.departments.some(dept =>
+                                                            getActiveSemestersByDept(dept.id, dept.deptType).includes(sem)
+                                                        );
                                                     }
                                                 })
                                                 .map((sem) => {
-                                                    let dt: string | undefined;
+                                                    let dept: any;
                                                     if (deptFilter) {
-                                                        const selectedDept = data.filters.departments.find(d => d.id === deptFilter);
-                                                        dt = selectedDept?.deptType;
+                                                        dept = data.filters.departments.find(d => d.id === deptFilter);
                                                     } else {
-                                                        const validDept = data.filters.departments.find(dept =>
-                                                            getActiveSemesters(dept.deptType).includes(sem)
+                                                        dept = data.filters.departments.find(d =>
+                                                            getActiveSemestersByDept(d.id, d.deptType).includes(sem)
                                                         );
-                                                        dt = validDept?.deptType;
                                                     }
-                                                    const label = getBatchLabel(sem, dt);
+                                                    const label = getBatchLabel(sem, dept?.deptType, dept?.id);
                                                     return (
                                                         <option key={sem} value={sem}>Semester {sem}{label ? ` (${label})` : ''}</option>
                                                     );

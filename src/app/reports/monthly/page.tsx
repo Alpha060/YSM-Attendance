@@ -57,7 +57,7 @@ function MonthlyReportContent() {
     const [stats, setStats] = useState<MonthlyStats | null>(null);
     const [dailyBreakdown, setDailyBreakdown] = useState<DailyBreakdown[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { getActiveSemesters, getBatchLabel } = useActiveSemesters();
+    const { getActiveSemesters, getActiveSemestersByDept, getBatchLabel } = useActiveSemesters();
 
     const getDeptType = (dept?: Department) => dept?.deptType || dept?.dept_type;
 
@@ -259,7 +259,7 @@ function MonthlyReportContent() {
                                     <div className="relative">
                                         <select
                                             value={selectedDepartmentId}
-                                            onChange={(e) => setSelectedDepartmentId(e.target.value)}
+                                            onChange={(e) => { setSelectedDepartmentId(e.target.value); setSelectedSemester(''); }}
                                             className="w-full pl-4 pr-10 py-2.5 bg-gray-50/50 border border-gray-200 hover:border-emerald-300 rounded-xl text-sm text-gray-700 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none appearance-none transition-all cursor-pointer font-medium shadow-sm"
                                         >
                                             <option value="">All Departments</option>
@@ -282,11 +282,13 @@ function MonthlyReportContent() {
                                     >
                                         <option value="">All Semesters</option>
                                         {(() => {
-                                            const effectiveDeptType = selectedDepartmentId 
-                                                ? getDeptType(departments.find(d => d.id === selectedDepartmentId)) 
-                                                : (user?.role === 'super_admin' ? 'regular' : (departments.length > 0 ? getDeptType(departments[0]) : 'regular'));
-                                            return getActiveSemesters(effectiveDeptType).map((sem) => {
-                                                const label = getBatchLabel(sem, effectiveDeptType);
+                                            const effectiveDept = selectedDepartmentId 
+                                                ? departments.find(d => d.id === selectedDepartmentId) 
+                                                : (user?.role === 'super_admin' ? undefined : (departments.length > 0 ? departments[0] : undefined));
+                                            const effectiveDeptType = getDeptType(effectiveDept) || 'regular';
+                                            const effectiveDeptId = effectiveDept?.id;
+                                            return getActiveSemestersByDept(effectiveDeptId, effectiveDeptType).map((sem) => {
+                                                const label = getBatchLabel(sem, effectiveDeptType, effectiveDeptId);
                                                 return (
                                                     <option key={sem} value={sem}>Sem {sem}{label ? ` (${label})` : ''}</option>
                                                 );

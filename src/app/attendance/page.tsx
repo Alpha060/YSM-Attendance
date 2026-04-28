@@ -12,6 +12,7 @@ import { useOfflineStatus } from '@/components/ServiceWorkerProvider';
 import { addToQueue, getQueueCount } from '@/lib/offlineQueue';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
 import { AccessDenied } from '@/components/ui/access-denied';
+import { useActiveSemesters } from '@/hooks/useActiveSemesters';
 
 interface Student {
     id: string;
@@ -67,7 +68,7 @@ export default function AttendancePage() {
     const [departments, setDepartments] = useState<Department[]>([]);
     const [teacherDepartmentIds, setTeacherDepartmentIds] = useState<string[]>([]); // All teacher's dept IDs for filtering
     const [primaryDeptType, setPrimaryDeptType] = useState<string>('regular'); // Primary dept type for batch year calc
-    const [batchConfig, setBatchConfig] = useState<Record<string, Record<string, number>>>({}); // Saved batch mappings from settings
+    const { getActiveSemesters, getActiveSemestersByDept, getBatchLabel: hookGetBatchLabel } = useActiveSemesters();
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     // Selection States
@@ -144,7 +145,7 @@ export default function AttendancePage() {
         fetchTeacherDepartments(token);
         fetchTeacherSubjects(token, parsedUser.id);
         fetchHolidays(token);
-        fetchBatchConfig(token);
+        // batch config now handled by useActiveSemesters hook (SWR cached)
         setLoading(false);
     }, [router]);
 
@@ -229,8 +230,8 @@ export default function AttendancePage() {
                 id: d.id,
                 name: d.name,
                 code: d.code || '',
-                deptType: d.deptType || 'regular',
-                degreeType: d.degreeType
+                deptType: d.deptType || d.dept_type || 'regular',
+                degreeType: d.degreeType || d.degree_type
             }));
 
             // Update with fresh data
@@ -313,50 +314,21 @@ export default function AttendancePage() {
         }
     };
 
-    // Fetch batch config (saved semester-to-batch mappings)
-    const fetchBatchConfig = async (token: string) => {
-        try {
-            const res = await fetch('/api/settings/batch-config', {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setBatchConfig(data.mappings || {});
-            }
-        } catch (err) {
-            console.error('Error fetching batch config:', err);
-        }
+    // Batch label helper: delegates to centralized useActiveSemesters hook (with dept ID)
+    const getBatchLabel = (sem: number, deptType: string, deptId?: string): string => {
+        return hookGetBatchLabel(sem, deptType, deptId) || '';
     };
 
-    // Helper: get batch label for a semester using saved config or fallback to date-calc
-    const getBatchLabel = (sem: number, deptType: string): string => {
-        // 1. Check saved config first
-        const savedMappings = batchConfig[deptType];
-        if (savedMappings && savedMappings[sem.toString()]) {
-            const batchStart = savedMappings[sem.toString()];
-            const duration = (deptType === 'vocational' || deptType === 'pg') ? 3 : 4;
-            const batchEnd = (batchStart + duration) % 100;
-            return `${batchStart}-${String(batchEnd).padStart(2, '0')}`;
+    // Helper to get dept type from a department — also infers from code as fallback
+    const getDeptType = (dept?: Department): string => {
+        if (dept?.deptType && dept.deptType !== 'regular') return dept.deptType;
+        // Infer from department code if deptType is missing or stale cached as 'regular'
+        if (dept?.code) {
+            const upperCode = dept.code.toUpperCase();
+            if (['BBA', 'BFA', 'BCOM'].includes(upperCode)) return 'vocational';
+            if (['MBA', 'MCA', 'MSC', 'MA'].includes(upperCode)) return 'pg';
         }
-
-        // 2. Fallback to dynamic calculation
-        const now = new Date();
-        const academicStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
-        const yearOffset = Math.floor((sem - 1) / 2);
-        const batchStart = academicStartYear - yearOffset;
-        const duration = (deptType === 'vocational' || deptType === 'pg') ? 3 : 4;
-        const batchEnd = (batchStart + duration) % 100;
-        return `${batchStart}-${String(batchEnd).padStart(2, '0')}`;
-    };
-
-    // Helper: check if a semester is active (not disabled by admin in settings)
-    // If admin has saved config and set a semester to null/empty, it's inactive
-    const isSemesterActive = (sem: number, deptType: string): boolean => {
-        const savedMappings = batchConfig[deptType];
-        // If no saved config exists yet, all semesters are active (first-time setup)
-        if (!savedMappings || Object.keys(savedMappings).length === 0) return true;
-        // If config exists, semester is active only if it has a truthy (non-null) value
-        return !!savedMappings[sem.toString()];
+        return dept?.deptType || 'regular';
     };
 
     // Check if selected date is a holiday
@@ -424,20 +396,35 @@ export default function AttendancePage() {
     // Get semesters for filtered subjects. If filtering resulted in empty, fall back to all subjects
     const subjectsToUse = filteredSubjects.length > 0 ? filteredSubjects : subjects;
 
-    // Determine active dept type for semester filtering
-    const activeDeptTypeForFilter = selectedDepartmentId
-        ? (departments.find(d => d.id === selectedDepartmentId)?.deptType || primaryDeptType)
-        : primaryDeptType;
+    // Determine effective department for semester filtering
+    const effectiveDept = selectedDepartmentId
+        ? departments.find(d => d.id === selectedDepartmentId)
+        : (departments.length > 0 ? departments[0] : undefined);
+    const effectiveDeptType = getDeptType(effectiveDept);
+    const effectiveDeptId = effectiveDept?.id;
 
-    const filteredSemesters = Array.from(
-        new Set(subjectsToUse.flatMap((s: Subject) => s.subjectSemesters))
-    ).filter(sem => isSemesterActive(sem, activeDeptTypeForFilter))
+    // Use centralized hook for active semesters (filtered by per-department batch config)
+    const hookActiveSemesters = getActiveSemestersByDept(effectiveDeptId, effectiveDeptType);
+
+    // Intersect with teacher's assigned subject semesters
+    const subjectSemesterSet = new Set(subjectsToUse.flatMap((s: Subject) => s.subjectSemesters));
+    const filteredSemesters = hookActiveSemesters
+        .filter(sem => subjectSemesterSet.has(sem))
         .sort((a, b) => a - b);
 
-    // Also filter the base availableSemesters (used when no dept filter is active)
-    const activeAvailableSemesters = availableSemesters.filter(sem =>
-        isSemesterActive(sem, primaryDeptType)
-    );
+    // When no dept filter is active, show semesters from all assigned subjects filtered by their respective dept configs
+    const allSubjectSemesterSet = new Set(subjects.flatMap((s: Subject) => s.subjectSemesters));
+    const activeAvailableSemesters = departments.length <= 1
+        ? filteredSemesters  // Single dept: same as filtered
+        : Array.from(allSubjectSemesterSet)
+            .filter(sem => {
+                return subjects.some(s => {
+                    if (!s.subjectSemesters.includes(sem)) return false;
+                    const dept = departments.find(d => d.id === s.departmentId);
+                    return getActiveSemestersByDept(dept?.id, getDeptType(dept)).includes(sem);
+                });
+            })
+            .sort((a, b) => a - b);
 
     // Auto-select subject when semester changes
     useEffect(() => {
@@ -1156,7 +1143,7 @@ export default function AttendancePage() {
                                         value={selectedDepartmentId}
                                         onChange={(e) => {
                                             setSelectedDepartmentId(e.target.value);
-                                            // Keep selected semester as requested
+                                            setSelectedSemester(''); // Reset semester — options differ by dept type
                                             setSelectedSubjectId('');
                                             e.target.blur();
                                         }}
@@ -1181,11 +1168,7 @@ export default function AttendancePage() {
                                 >
                                     <option value="">Select Semester</option>
                                     {(departments.length > 1 && selectedDepartmentId ? filteredSemesters : activeAvailableSemesters).map(sem => {
-                                        const activeDept = selectedDepartmentId
-                                            ? departments.find(d => d.id === selectedDepartmentId)
-                                            : departments[0] || null;
-                                        const deptType = activeDept?.deptType || primaryDeptType;
-                                        const batchLabel = getBatchLabel(sem, deptType);
+                                        const batchLabel = getBatchLabel(sem, getDeptType(effectiveDept), effectiveDept?.id);
                                         return (
                                             <option key={sem} value={sem}>Sem {sem} ({batchLabel})</option>
                                         );
@@ -1379,7 +1362,7 @@ export default function AttendancePage() {
                                             value={selectedDepartmentId}
                                             onChange={(e) => {
                                                 setSelectedDepartmentId(e.target.value);
-                                                // Keep selected semester as requested
+                                                setSelectedSemester(''); // Reset semester — options differ by dept type
                                                 setSelectedSubjectId('');
                                                 e.target.blur();
                                             }}
@@ -1410,11 +1393,7 @@ export default function AttendancePage() {
                                     >
                                         <option value="">Select...</option>
                                         {(departments.length > 1 && selectedDepartmentId ? filteredSemesters : activeAvailableSemesters).map(sem => {
-                                            const activeDept = selectedDepartmentId
-                                                ? departments.find(d => d.id === selectedDepartmentId)
-                                                : departments[0] || null;
-                                            const deptType = activeDept?.deptType || primaryDeptType;
-                                            const batchLabel = getBatchLabel(sem, deptType);
+                                            const batchLabel = getBatchLabel(sem, getDeptType(effectiveDept), effectiveDept?.id);
                                             return (
                                                 <option key={sem} value={sem}>
                                                     Sem {sem} ({batchLabel})

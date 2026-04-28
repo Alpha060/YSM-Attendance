@@ -78,7 +78,7 @@ function DailyReportContent() {
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [lecturesSummary, setLecturesSummary] = useState<LectureSummary[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { getActiveSemesters, getBatchLabel } = useActiveSemesters();
+    const { getActiveSemesters, getActiveSemestersByDept, getBatchLabel } = useActiveSemesters();
 
     // Real-time updates
     useRealtimeData({
@@ -643,7 +643,7 @@ function DailyReportContent() {
                                 <div className="relative">
                                     <select
                                         value={selectedDepartmentId}
-                                        onChange={(e) => { setSelectedDepartmentId(e.target.value); }}
+                                        onChange={(e) => { setSelectedDepartmentId(e.target.value); setSelectedSemester(''); setSelectedSubjectId(''); }}
                                         className="w-full pl-4 pr-10 py-2.5 bg-gray-50/50 border border-gray-200 hover:border-blue-300 rounded-xl text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none appearance-none transition-all cursor-pointer font-medium"
                                     >
                                         <option value="">All Departments</option>
@@ -667,11 +667,13 @@ function DailyReportContent() {
                                 >
                                     <option value="">All Semesters</option>
                                     {(() => {
-                                        const effectiveDeptType = selectedDepartmentId
-                                            ? getDeptType(departments.find(d => d.id === selectedDepartmentId))
-                                            : (user?.role === 'super_admin' ? 'regular' : (departments.length > 0 ? getDeptType(departments[0]) : 'regular'));
-                                        return getActiveSemesters(effectiveDeptType).map((sem) => {
-                                            const label = getBatchLabel(sem, effectiveDeptType);
+                                        const effectiveDept = selectedDepartmentId
+                                            ? departments.find(d => d.id === selectedDepartmentId)
+                                            : (user?.role === 'super_admin' ? undefined : (departments.length > 0 ? departments[0] : undefined));
+                                        const effectiveDeptType = getDeptType(effectiveDept) || 'regular';
+                                        const effectiveDeptId = effectiveDept?.id;
+                                        return getActiveSemestersByDept(effectiveDeptId, effectiveDeptType).map((sem) => {
+                                            const label = getBatchLabel(sem, effectiveDeptType, effectiveDeptId);
                                             return (
                                                 <option key={sem} value={sem}>Sem {sem}{label ? ` (${label})` : ''}</option>
                                             );
