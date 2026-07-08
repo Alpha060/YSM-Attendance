@@ -306,56 +306,58 @@ function MonthlyReportContent() {
             if (format === 'excel') {
                 const workbook = XLSX.utils.book_new();
 
+                const buildSheetData = (
+                    sheetStudents: any[],
+                    sheetSubjects: { id: string; name: string; paperCode: string | null }[],
+                    meta: string[][]
+                ) => {
+                    const headers = ['Student ID', 'Roll Number', 'Name', ...sheetSubjects.map(sub => sub.paperCode ? `${sub.name} (${sub.paperCode})` : sub.name), 'Total Classes', 'Attended', 'Percentage', 'Status'];
+
+                    const totalClassesRow: string[] = [
+                        'Total Classes Held', '', '',
+                        ...sheetSubjects.map(sub => {
+                            let maxTotal = 0;
+                            sheetStudents.forEach(s => {
+                                const subAtt = s.subjectAttendance?.find((sa: any) => sa.subjectId === sub.id);
+                                if (subAtt && subAtt.totalClasses > maxTotal) maxTotal = subAtt.totalClasses;
+                            });
+                            return maxTotal.toString();
+                        }),
+                        sheetStudents.reduce((max: number, s: any) => Math.max(max, s.totalClasses), 0).toString(),
+                        '', '', ''
+                    ];
+
+                    const rows = sheetStudents.map((s: any) => {
+                        const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
+                        return [
+                            s.studentId || '-',
+                            String(s.rollNumber || ''),
+                            s.name,
+                            ...sheetSubjects.map(sub => {
+                                const subAtt = s.subjectAttendance?.find((sa: any) => sa.subjectId === sub.id);
+                                return subAtt ? subAtt.attended.toString() : '0';
+                            }),
+                            s.totalClasses.toString(),
+                            s.attended.toString(),
+                            `${Math.round(s.percentage)}%`,
+                            status
+                        ];
+                    });
+
+                    return [...meta, headers, totalClassesRow, ...rows];
+                };
+
                 if (isFiltered) {
                     const deptName = selectedDepartmentId ? departments.find(d => d.id === selectedDepartmentId)?.name || 'All' : 'All';
-                    const metadataRows = [
+                    const meta = [
                         ['Generated on:', new Date().toLocaleDateString()],
                         ['Report Month:', selectedMonth],
                         ['Department:', deptName],
                         ['Semester:', selectedSemester || 'All'],
-                        [] // Empty spacer
+                        []
                     ];
-
-                    const headers = ['Student ID', 'Roll Number', 'Name', 'Total Classes', 'Attended', 'Percentage', 'Status', ...subjects.map(sub => sub.paperCode ? `${sub.name} (${sub.paperCode})` : sub.name)];
-                    
-                    const totalClassesRow = [
-                        'Total Classes Held',
-                        '',
-                        '',
-                        monthlyStudents.reduce((max, s) => Math.max(max, s.totalClasses), 0).toString(),
-                        '',
-                        '',
-                        '',
-                        ...subjects.map(sub => {
-                            let maxTotal = 0;
-                            monthlyStudents.forEach(s => {
-                                const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                if (subAtt && subAtt.totalClasses > maxTotal) {
-                                    maxTotal = subAtt.totalClasses;
-                                }
-                            });
-                            return maxTotal.toString();
-                        })
-                    ];
-
-                    const rows = monthlyStudents.map(s => {
-                        const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
-                        return [
-                            s.studentId || '-',
-                            s.rollNumber,
-                            s.name,
-                            s.totalClasses.toString(),
-                            s.attended.toString(),
-                            `${Math.round(s.percentage)}%`,
-                            status,
-                            ...subjects.map(sub => {
-                                const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                return subAtt ? subAtt.attended.toString() : '0';
-                            })
-                        ];
-                    });
-
-                    const worksheet = XLSX.utils.aoa_to_sheet([...metadataRows, headers, totalClassesRow, ...rows]);
+                    const sheetData = buildSheetData(monthlyStudents, subjects, meta);
+                    const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
                     XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Report");
                 } else {
                     if (sortedGroupKeys.length === 0) {
@@ -365,57 +367,17 @@ function MonthlyReportContent() {
                         sortedGroupKeys.forEach(key => {
                             const group = groups[key];
                             const groupSubjects = getGroupSubjects(group.students);
-
-                            const metadataRows = [
+                            const meta = [
                                 ['Generated on:', new Date().toLocaleDateString()],
                                 ['Report Month:', selectedMonth],
                                 ['Department:', group.department],
                                 ['Semester:', group.semester.toString()],
-                                [] // Empty spacer
+                                []
                             ];
-
-                            const headers = ['Student ID', 'Roll Number', 'Name', 'Total Classes', 'Attended', 'Percentage', 'Status', ...groupSubjects.map(sub => sub.paperCode ? `${sub.name} (${sub.paperCode})` : sub.name)];
-                            
-                            const totalClassesRow = [
-                                'Total Classes Held',
-                                '',
-                                '',
-                                group.students.reduce((max, s) => Math.max(max, s.totalClasses), 0).toString(),
-                                '',
-                                '',
-                                '',
-                                ...groupSubjects.map(sub => {
-                                    let maxTotal = 0;
-                                    group.students.forEach(s => {
-                                        const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                        if (subAtt && subAtt.totalClasses > maxTotal) {
-                                            maxTotal = subAtt.totalClasses;
-                                        }
-                                    });
-                                    return maxTotal.toString();
-                                })
-                            ];
-
-                            const rows = group.students.map(s => {
-                                const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
-                                return [
-                                    s.studentId || '-',
-                                    s.rollNumber,
-                                    s.name,
-                                    s.totalClasses.toString(),
-                                    s.attended.toString(),
-                                    `${Math.round(s.percentage)}%`,
-                                    status,
-                                    ...groupSubjects.map(sub => {
-                                        const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                        return subAtt ? subAtt.attended.toString() : '0';
-                                    })
-                                ];
-                            });
-
-                            const worksheet = XLSX.utils.aoa_to_sheet([...metadataRows, headers, totalClassesRow, ...rows]);
+                            const sheetData = buildSheetData(group.students, groupSubjects, meta);
+                            const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
                             let sheetName = `${group.departmentCode} Sem ${group.semester}`
-                                .replace(/[:\\/?*\[\]]/g, '')
+                                .replace(/[:\\\\/?*\[\]]/g, '')
                                 .slice(0, 31);
                             XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
                         });
@@ -425,28 +387,26 @@ function MonthlyReportContent() {
                 XLSX.writeFile(workbook, `${filename}.xlsx`);
             } else if (format === 'pdf') {
                 const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/college-logo.png` : '/college-logo.png';
-                
-                let tablesHtml = '';
-                
-                if (isFiltered) {
-                    const maxOverall = monthlyStudents.reduce((max, s) => Math.max(max, s.totalClasses), 0);
-                    tablesHtml = `
-                        <p class="meta">
-                            <strong>Filters Applied:</strong> Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${monthlyStudents.length}
-                            ${selectedSemester ? ` | Semester: ${selectedSemester}` : ''}
-                            ${selectedDepartmentId ? ` | Department: ${departments.find(d => d.id === selectedDepartmentId)?.name || ''}` : ''}
-                        </p>
+
+                const buildTableHtml = (
+                    tableStudents: any[],
+                    tableSubjects: { id: string; name: string; paperCode: string | null }[],
+                    metaHtml: string
+                ) => {
+                    const maxOverall = tableStudents.reduce((max: number, s: any) => Math.max(max, s.totalClasses), 0);
+                    return `
+                        ${metaHtml}
                         <table>
                             <thead>
                                 <tr>
                                     <th>Student ID</th>
-                                    <th>Roll Number</th>
+                                    <th>Roll No</th>
                                     <th>Name</th>
-                                    <th>Total Classes</th>
+                                    ${tableSubjects.map(sub => `<th>${sub.name}${sub.paperCode ? `<br/><span style="font-size: 8px; font-weight: normal; color: #e0e7ff;">(${sub.paperCode})</span>` : ''}</th>`).join('')}
+                                    <th>Total</th>
                                     <th>Attended</th>
-                                    <th>Percentage</th>
+                                    <th>%</th>
                                     <th>Status</th>
-                                    ${subjects.map(sub => `<th>${sub.name}${sub.paperCode ? `<br/><span style="font-size: 8px; font-weight: normal; color: #e0e7ff;">(${sub.paperCode})</span>` : ''}</th>`).join('')}
                                 </tr>
                             </thead>
                             <tbody>
@@ -454,22 +414,20 @@ function MonthlyReportContent() {
                                     <td>Total Classes Held</td>
                                     <td></td>
                                     <td></td>
+                                    ${tableSubjects.map(sub => {
+                                        let maxTotal = 0;
+                                        tableStudents.forEach((s: any) => {
+                                            const subAtt = s.subjectAttendance?.find((sa: any) => sa.subjectId === sub.id);
+                                            if (subAtt && subAtt.totalClasses > maxTotal) maxTotal = subAtt.totalClasses;
+                                        });
+                                        return `<td>${maxTotal}</td>`;
+                                    }).join('')}
                                     <td>${maxOverall}</td>
                                     <td></td>
                                     <td></td>
                                     <td></td>
-                                    ${subjects.map(sub => {
-                                        let maxTotal = 0;
-                                        monthlyStudents.forEach(s => {
-                                            const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                            if (subAtt && subAtt.totalClasses > maxTotal) {
-                                                maxTotal = subAtt.totalClasses;
-                                            }
-                                        });
-                                        return `<td>${maxTotal}</td>`;
-                                    }).join('')}
                                 </tr>
-                                ${monthlyStudents.map(s => {
+                                ${tableStudents.map((s: any) => {
                                     const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
                                     const statusClass = status === 'Good Standing' ? 'good' : status === 'Warning' ? 'warning' : 'critical';
                                     return `
@@ -477,89 +435,47 @@ function MonthlyReportContent() {
                                             <td>${s.studentId || '-'}</td>
                                             <td>${s.rollNumber}</td>
                                             <td>${s.name}</td>
+                                            ${tableSubjects.map(sub => {
+                                                const subAtt = s.subjectAttendance?.find((sa: any) => sa.subjectId === sub.id);
+                                                return `<td>${subAtt ? subAtt.attended : '0'}</td>`;
+                                            }).join('')}
                                             <td>${s.totalClasses}</td>
                                             <td>${s.attended}</td>
                                             <td>${Math.round(s.percentage)}%</td>
                                             <td><span class="status-badge ${statusClass}">${status}</span></td>
-                                            ${subjects.map(sub => {
-                                                const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                                return `<td>${subAtt ? subAtt.attended : '0'}</td>`;
-                                            }).join('')}
                                         </tr>
                                     `;
                                 }).join('')}
                             </tbody>
                         </table>
                     `;
+                };
+
+                let tablesHtml = '';
+
+                if (isFiltered) {
+                    tablesHtml = buildTableHtml(monthlyStudents, subjects, `
+                        <p class="meta">
+                            <strong>Filters Applied:</strong> Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${monthlyStudents.length}
+                            ${selectedSemester ? ` | Semester: ${selectedSemester}` : ''}
+                            ${selectedDepartmentId ? ` | Department: ${departments.find(d => d.id === selectedDepartmentId)?.name || ''}` : ''}
+                        </p>
+                    `);
                 } else {
                     tablesHtml = sortedGroupKeys.map((key, groupIdx) => {
                         const group = groups[key];
                         const groupSubjects = getGroupSubjects(group.students);
-                        const maxOverall = group.students.reduce((max, s) => Math.max(max, s.totalClasses), 0);
-                        
                         return `
                             ${groupIdx > 0 ? '<div style="page-break-before: always; height: 1px;"></div>' : ''}
                             <div class="group-section" style="margin-bottom: 30px;">
                                 <h3 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 5px; margin-top: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
                                     ${group.department} &mdash; Semester ${group.semester}
                                 </h3>
-                                <p class="meta" style="margin-bottom: 8px;">
-                                    Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${group.students.length}
-                                </p>
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Student ID</th>
-                                            <th>Roll Number</th>
-                                            <th>Name</th>
-                                            <th>Total Classes</th>
-                                            <th>Attended</th>
-                                            <th>Percentage</th>
-                                            <th>Status</th>
-                                            ${groupSubjects.map(sub => `<th>${sub.name}${sub.paperCode ? `<br/><span style="font-size: 8px; font-weight: normal; color: #e0e7ff;">(${sub.paperCode})</span>` : ''}</th>`).join('')}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style="font-weight: bold; background-color: #e2e8f0;">
-                                            <td>Total Classes Held</td>
-                                            <td></td>
-                                            <td></td>
-                                            <td>${maxOverall}</td>
-                                            <td></td>
-                                            <td></td>
-                                            <td></td>
-                                            ${groupSubjects.map(sub => {
-                                                let maxTotal = 0;
-                                                group.students.forEach(s => {
-                                                    const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                                    if (subAtt && subAtt.totalClasses > maxTotal) {
-                                                        maxTotal = subAtt.totalClasses;
-                                                    }
-                                                });
-                                                return `<td>${maxTotal}</td>`;
-                                            }).join('')}
-                                        </tr>
-                                        ${group.students.map(s => {
-                                            const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
-                                            const statusClass = status === 'Good Standing' ? 'good' : status === 'Warning' ? 'warning' : 'critical';
-                                            return `
-                                                <tr>
-                                                    <td>${s.studentId || '-'}</td>
-                                                    <td>${s.rollNumber}</td>
-                                                    <td>${s.name}</td>
-                                                    <td>${s.totalClasses}</td>
-                                                    <td>${s.attended}</td>
-                                                    <td>${Math.round(s.percentage)}%</td>
-                                                    <td><span class="status-badge ${statusClass}">${status}</span></td>
-                                                    ${groupSubjects.map(sub => {
-                                                        const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
-                                                        return `<td>${subAtt ? subAtt.attended : '0'}</td>`;
-                                                    }).join('')}
-                                                </tr>
-                                            `;
-                                        }).join('')}
-                                    </tbody>
-                                </table>
+                                ${buildTableHtml(group.students, groupSubjects, `
+                                    <p class="meta" style="margin-bottom: 8px;">
+                                        Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${group.students.length}
+                                    </p>
+                                `)}
                             </div>
                         `;
                     }).join('');
@@ -614,23 +530,29 @@ function MonthlyReportContent() {
     </div>
     
     ${tablesHtml}
-    
-    <script>
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 500);
-        }
-    </script>
 </body>
 </html>`;
 
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                    printWindow.document.write(printContent);
-                    printWindow.document.close();
+                const iframe = document.createElement('iframe');
+                iframe.style.position = 'fixed';
+                iframe.style.right = '0';
+                iframe.style.bottom = '0';
+                iframe.style.width = '0';
+                iframe.style.height = '0';
+                iframe.style.border = 'none';
+                document.body.appendChild(iframe);
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (iframeDoc) {
+                    iframeDoc.open();
+                    iframeDoc.write(printContent);
+                    iframeDoc.close();
+                    setTimeout(() => {
+                        iframe.contentWindow?.print();
+                        setTimeout(() => document.body.removeChild(iframe), 1000);
+                    }, 500);
                 }
             }
+
         } catch (err) {
             console.error('Error exporting monthly report:', err);
         }
