@@ -466,13 +466,13 @@ function MonthlyReportContent() {
                         const group = groups[key];
                         const groupSubjects = getGroupSubjects(group.students);
                         return `
-                            ${groupIdx > 0 ? '<div style="page-break-before: always; height: 1px;"></div>' : ''}
-                            <div class="group-section" style="margin-bottom: 30px;">
-                                <h3 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 5px; margin-top: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                            ${groupIdx > 0 ? '<div style="margin-top: 25px; border-top: 1px dashed #cbd5e1; padding-top: 15px; page-break-inside: avoid;"></div>' : ''}
+                            <div class="group-section" style="margin-bottom: 25px;">
+                                <h3 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 5px; margin-top: 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
                                     ${group.department} &mdash; Semester ${group.semester}
                                 </h3>
                                 ${buildTableHtml(group.students, groupSubjects, `
-                                    <p class="meta" style="margin-bottom: 8px;">
+                                    <p class="meta" style="margin-bottom: 6px;">
                                         Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${group.students.length}
                                     </p>
                                 `)}
@@ -499,6 +499,7 @@ function MonthlyReportContent() {
         .report-title-box p { color: #6b7280; font-size: 10px; margin: 0; }
         .meta { color: #666; margin-bottom: 10px; font-size: 9px; line-height: 1.4; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; page-break-inside: auto; }
+        thead { display: table-header-group; }
         tr { page-break-inside: avoid; page-break-after: auto; }
         th { background-color: #1e3a8a; color: white; padding: 6px 4px; text-align: left; font-weight: 600; border: 1px solid #e2e8f0; }
         td { padding: 4px; border: 1px solid #ddd; text-align: left; }
@@ -509,7 +510,7 @@ function MonthlyReportContent() {
         .status-badge { padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: bold; display: inline-block; }
         @media print { 
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 10mm; } 
-            .group-section { page-break-inside: avoid; }
+            .group-section { page-break-inside: auto; }
         }
     </style>
 </head>
