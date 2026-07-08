@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
                     s.first_name,
                     s.last_name,
                     d.code as department_code,
-                    s.semester,
+                    s.current_semester as semester,
                     sub.code as subject_code,
                     sub.paper_code as subject_paper_code,
                     sub.name as subject_name,
