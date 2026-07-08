@@ -69,6 +69,7 @@ function MonthlyReportContent() {
     const viewParam = searchParams.get('view') || '';
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [exportLoading, setExportLoading] = useState(false);
     const [departments, setDepartments] = useState<Department[]>([]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
     const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
@@ -216,7 +217,7 @@ function MonthlyReportContent() {
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         const end = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
 
-        setLoading(true);
+        setExportLoading(true);
         try {
             let url = `/api/reports/students?startDate=${start}&endDate=${end}`;
             if (selectedDepartmentId) url += `&departmentId=${selectedDepartmentId}`;
@@ -557,7 +558,7 @@ function MonthlyReportContent() {
         } catch (err) {
             console.error('Error exporting monthly report:', err);
         }
-        setLoading(false);
+        setExportLoading(false);
     };
 
     const formatDate = (dateStr: string) => {
@@ -613,7 +614,7 @@ function MonthlyReportContent() {
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('pdf')}
-                                disabled={loading}
+                                disabled={exportLoading}
                             >
                                 <FileText className="w-4 h-4 sm:mr-2" />
                                 <span className="hidden sm:inline">PDF</span>
@@ -623,7 +624,7 @@ function MonthlyReportContent() {
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('excel')}
-                                disabled={loading}
+                                disabled={exportLoading}
                             >
                                 <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
                                 <span className="hidden sm:inline">Excel</span>
