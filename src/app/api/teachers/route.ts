@@ -19,6 +19,7 @@ interface DepartmentInfo {
     code: string;
     dept_type?: string;
     is_primary: boolean;
+    role?: string;
 }
 
 // GET - List teachers
@@ -62,7 +63,8 @@ export async function GET(request: NextRequest) {
                         'name', dept.name,
                         'code', dept.code,
                         'dept_type', dept.dept_type,
-                        'is_primary', false
+                        'is_primary', false,
+                        'role', ud.role
                     )), '[]'::json)
                     FROM user_departments ud
                     JOIN departments dept ON ud.department_id = dept.id
@@ -74,15 +76,15 @@ export async function GET(request: NextRequest) {
         `;
         const params: string[] = [];
 
-        // HODs can see teachers from their assigned departments
+        // HODs can see teachers from their assigned departments (where they are HOD)
         if (payload.role === 'hod' && payload.userId) {
             queryText += ` AND (
-                u.department_id IN (SELECT department_id FROM user_departments WHERE user_id = $1)
+                u.department_id IN (SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod')
                 OR u.department_id = $2
                 OR EXISTS (
                     SELECT 1 FROM user_departments ud 
                     WHERE ud.user_id = u.id AND (
-                        ud.department_id IN (SELECT department_id FROM user_departments WHERE user_id = $1)
+                        ud.department_id IN (SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod')
                         OR ud.department_id = $2
                     )
                 )
@@ -104,7 +106,8 @@ export async function GET(request: NextRequest) {
                     id: teacher.department_id,
                     name: teacher.department_name,
                     code: teacher.department_code,
-                    is_primary: true
+                    is_primary: true,
+                    role: teacher.role
                 });
             }
 
@@ -140,30 +143,46 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Access denied' }, { status: 403 });
         }
 
-        const { firstName, lastName, email, departmentId, departmentIds, role, password } = await request.json();
+        const body = await request.json();
+        const { firstName, lastName, email, role, password, departments: requestDepts, departmentIds, departmentId } = body;
 
-        // Support both single departmentId and array of departmentIds
-        const deptIds: string[] = departmentIds || (departmentId ? [departmentId] : []);
+        // Support both new `{ id, role }[]` format and legacy `departmentIds` array
+        let depts: { id: string; role: string }[] = [];
+        if (requestDepts && Array.isArray(requestDepts)) {
+            depts = requestDepts;
+        } else {
+            const ids: string[] = departmentIds || (departmentId ? [departmentId] : []);
+            depts = ids.map((id, index) => ({
+                id,
+                role: index === 0 ? (role || 'teacher') : 'teacher'
+            }));
+        }
 
-        if (!firstName || !lastName || !email || deptIds.length === 0) {
+        if (!firstName || !lastName || !email || depts.length === 0) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const primaryDeptId = deptIds[0];
-        const additionalDeptIds = deptIds.slice(1);
+        const primaryDeptId = depts[0].id;
+        const primaryRole = depts[0].role;
+        const additionalDepts = depts.slice(1);
 
         // HODs can only create in their department (no multiple departments)
         if (payload.role === 'hod') {
-            if (payload.departmentId !== primaryDeptId) {
+            const isHodOfDept = payload.departmentId === primaryDeptId || await query(
+                "SELECT 1 FROM user_departments WHERE user_id = $1 AND department_id = $2 AND role = 'hod'",
+                [payload.userId, primaryDeptId]
+            ).then(r => r.length > 0);
+
+            if (!isHodOfDept) {
                 return NextResponse.json({ error: 'Can only add teachers to your department' }, { status: 403 });
             }
-            if (additionalDeptIds.length > 0) {
-                return NextResponse.json({ error: 'Only admin can assign teachers to multiple departments' }, { status: 403 });
+            if (additionalDepts.length > 0) {
+                return NextResponse.json({ error: 'HODs cannot assign teachers to multiple departments' }, { status: 403 });
             }
         }
 
-        // Enforce Single HOD Rule
-        if (role === 'hod') {
+        // Enforce Single HOD Rule (if promoting to HOD)
+        if (primaryRole === 'hod') {
             await query(
                 `UPDATE users SET role = 'teacher', updated_at = CURRENT_TIMESTAMP 
                  WHERE department_id = $1 AND role = 'hod'`,
@@ -179,18 +198,18 @@ export async function POST(request: NextRequest) {
             `INSERT INTO users (first_name, last_name, email, password_hash, role, department_id)
              VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING *`,
-            [firstName, lastName, email, passwordHash, role || 'teacher', primaryDeptId]
+             [firstName, lastName, email, passwordHash, primaryRole || 'teacher', primaryDeptId]
         );
 
         const newTeacher = teachers[0];
 
         // Add additional departments
-        for (const deptId of additionalDeptIds) {
+        for (const dept of additionalDepts) {
             await query(
-                `INSERT INTO user_departments (user_id, department_id) 
-                 VALUES ($1, $2) 
-                 ON CONFLICT (user_id, department_id) DO NOTHING`,
-                [newTeacher.id, deptId]
+                `INSERT INTO user_departments (user_id, department_id, role) 
+                 VALUES ($1, $2, $3) 
+                 ON CONFLICT (user_id, department_id) DO UPDATE SET role = EXCLUDED.role`,
+                [newTeacher.id, dept.id, dept.role || 'teacher']
             );
         }
 
@@ -284,46 +303,69 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Access denied' }, { status: 403 });
         }
 
-        const { id, firstName, lastName, email, departmentId, departmentIds, role, password } = await request.json();
+        const body = await request.json();
+        const { id, firstName, lastName, email, role, password, departments: requestDepts, departmentIds, departmentId } = body;
 
         if (!id) {
             return NextResponse.json({ error: 'Teacher ID required' }, { status: 400 });
         }
 
-        // Support both single departmentId and array of departmentIds
-        let deptIds: string[] = departmentIds || (departmentId ? [departmentId] : []);
-        let primaryDeptId = deptIds.length > 0 ? deptIds[0] : null;
-        let additionalDeptIds = deptIds.slice(1);
+        // Support both new `{ id, role }[]` format and legacy `departmentIds` array
+        let depts: { id: string; role: string }[] = [];
+        if (requestDepts && Array.isArray(requestDepts)) {
+            depts = requestDepts;
+        } else {
+            const ids: string[] = departmentIds || (departmentId ? [departmentId] : []);
+            depts = ids.map((id, index) => ({
+                id,
+                role: index === 0 ? (role || 'teacher') : 'teacher'
+            }));
+        }
+
+        let primaryDeptId = depts.length > 0 ? depts[0].id : null;
+        let primaryRole = depts.length > 0 ? depts[0].role : null;
+        let additionalDepts = depts.slice(1);
 
         // HOD restriction check
         if (payload.role === 'hod') {
-            const teacher = await query<{ department_id: string }>(
-                'SELECT department_id FROM users WHERE id = $1',
+            const allowedDepts = await query<{ department_id: string }>(
+                `SELECT department_id FROM users WHERE id = $1 AND role = 'hod'
+                 UNION
+                 SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'`,
+                [payload.userId]
+            );
+            const allowedDeptIds = allowedDepts.map(d => d.department_id);
+
+            const teacherDepts = await query<{ department_id: string }>(
+                `SELECT department_id FROM users WHERE id = $1
+                 UNION
+                 SELECT department_id FROM user_departments WHERE user_id = $1`,
                 [id]
             );
-            if (teacher.length === 0 || teacher[0].department_id !== payload.departmentId) {
-                // Check if teacher is in HOD's additional departments
-                const additionalCheck = await query<{ department_id: string }>(
-                    'SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2',
-                    [id, payload.departmentId]
-                );
-                if (additionalCheck.length === 0) {
-                    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-                }
+            const teacherDeptIds = teacherDepts.map(d => d.department_id);
+
+            const hasOverlap = teacherDeptIds.some(dId => allowedDeptIds.includes(dId));
+            if (!hasOverlap) {
+                return NextResponse.json({ error: 'Access denied' }, { status: 403 });
             }
             
             // HODs are not allowed to modify teacher departments. Override with existing db values.
-            const currentDepts = await query<{ department_id: string }>('SELECT department_id FROM user_departments WHERE user_id = $1', [id]);
-            deptIds = [];
-            if (teacher[0].department_id) deptIds.push(teacher[0].department_id);
-            deptIds.push(...currentDepts.map(d => d.department_id));
+            const teacherPrimary = await query<{ department_id: string, role: string }>('SELECT department_id, role FROM users WHERE id = $1', [id]);
+            depts = [];
+            if (teacherPrimary[0]?.department_id) {
+                depts.push({ id: teacherPrimary[0].department_id, role: teacherPrimary[0].role });
+            }
             
-            primaryDeptId = deptIds.length > 0 ? deptIds[0] : null;
-            additionalDeptIds = deptIds.slice(1);
+            const currentAddDepts = await query<{ department_id: string, role: string }>('SELECT department_id, role FROM user_departments WHERE user_id = $1', [id]);
+            depts.push(...currentAddDepts.map(d => ({ id: d.department_id, role: d.role })));
+            
+            primaryDeptId = depts.length > 0 ? depts[0].id : null;
+            primaryRole = depts.length > 0 ? depts[0].role : null;
+            additionalDepts = depts.slice(1);
         }
 
         // Enforce Single HOD Rule (if promoting to HOD)
-        if (role === 'hod') {
+        if (primaryRole === 'hod') {
             let targetDeptId = primaryDeptId;
             if (!targetDeptId) {
                 const current = await query<{ department_id: string }>('SELECT department_id FROM users WHERE id = $1', [id]);
@@ -347,7 +389,7 @@ export async function PUT(request: NextRequest) {
         if (lastName) { updateFields.push(`last_name = $${++paramCount}`); params.push(lastName); }
         if (email) { updateFields.push(`email = $${++paramCount}`); params.push(email); }
         if (primaryDeptId) { updateFields.push(`department_id = $${++paramCount}`); params.push(primaryDeptId); }
-        if (role) { updateFields.push(`role = $${++paramCount}`); params.push(role); }
+        if (primaryRole) { updateFields.push(`role = $${++paramCount}`); params.push(primaryRole); }
         if (password) {
             const passwordHash = await hashPassword(password);
             updateFields.push(`password_hash = $${++paramCount}`);
@@ -362,17 +404,17 @@ export async function PUT(request: NextRequest) {
         }
 
         // Update additional departments
-        if (deptIds.length > 0) {
+        if (depts.length > 0) {
             // Remove all additional departments first
             await query('DELETE FROM user_departments WHERE user_id = $1', [id]);
 
-            // Add new additional departments
-            for (const deptId of additionalDeptIds) {
+            // Add new additional departments with roles
+            for (const dept of additionalDepts) {
                 await query(
-                    `INSERT INTO user_departments (user_id, department_id) 
-                     VALUES ($1, $2) 
-                     ON CONFLICT (user_id, department_id) DO NOTHING`,
-                    [id, deptId]
+                    `INSERT INTO user_departments (user_id, department_id, role) 
+                     VALUES ($1, $2, $3) 
+                     ON CONFLICT (user_id, department_id) DO UPDATE SET role = EXCLUDED.role`,
+                    [id, dept.id, dept.role || 'teacher']
                 );
             }
         }

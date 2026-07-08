@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
         // HOD must own the department
         if (payload.role === 'hod') {
             const owned = await query<{ department_id: string }>(
-                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2
+                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2 AND role = 'hod'
                  UNION
-                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2`,
+                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2 AND role = 'hod'`,
                 [payload.userId, departmentId]
             );
             if (owned.length === 0) {

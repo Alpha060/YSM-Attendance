@@ -197,13 +197,16 @@ export async function GET(request: NextRequest) {
                 queryStr += ` AND ar.teacher_id = $${params.length}`;
             }
 
-            // RBAC: HODs only see their department's records
+            // RBAC: HODs only see their department's records (where they are HOD) or records they teach
             if (payload.role === 'hod') {
                 params.push(payload.userId);
-                queryStr += ` AND ar.student_id IN (
-                    SELECT id FROM students 
-                    WHERE department_id = (SELECT department_id FROM users WHERE id = $${params.length})
-                       OR department_id IN (SELECT department_id FROM user_departments WHERE user_id = $${params.length})
+                queryStr += ` AND (
+                    ar.teacher_id = $${params.length}
+                    OR ar.student_id IN (
+                        SELECT id FROM students 
+                        WHERE department_id = (SELECT department_id FROM users WHERE id = $${params.length} AND role = 'hod')
+                           OR department_id IN (SELECT department_id FROM user_departments WHERE user_id = $${params.length} AND role = 'hod')
+                    )
                 )`;
             }
 

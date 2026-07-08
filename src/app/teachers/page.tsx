@@ -35,6 +35,7 @@ interface DepartmentInfo {
     name: string;
     code: string;
     is_primary: boolean;
+    role?: string;
 }
 
 interface Teacher {
@@ -97,9 +98,21 @@ export default function TeachersPage() {
         name: '', email: '', role: 'teacher', password: ''
     });
     const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
+    const [deptRoles, setDeptRoles] = useState<Record<string, 'hod' | 'teacher'>>({});
     const [selectedSubjectKeys, setSelectedSubjectKeys] = useState<string[]>([]);
     const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
     const [enablePasswordUpdate, setEnablePasswordUpdate] = useState(false);
+
+    const handleDeptRoleChange = (deptId: string, role: 'hod' | 'teacher') => {
+        setDeptRoles(prev => ({
+            ...prev,
+            [deptId]: role
+        }));
+        // If it's the primary department, keep formData.role in sync
+        if (selectedDepartmentIds[0] === deptId) {
+            setFormData(prev => ({ ...prev, role }));
+        }
+    };
 
     // Search & Filter
     const [searchTerm, setSearchTerm] = useState('');
@@ -273,8 +286,13 @@ export default function TeachersPage() {
     const resetForm = () => {
         // For HOD users, auto-set their departmentId
         const defaultDeptIds = user?.role === 'hod' && user.departmentId ? [user.departmentId] : [];
+        const initialRoles: Record<string, 'hod' | 'teacher'> = {};
+        if (user?.role === 'hod' && user.departmentId) {
+            initialRoles[user.departmentId] = 'teacher';
+        }
         setFormData({ name: '', email: '', role: 'teacher', password: '' });
         setSelectedDepartmentIds(defaultDeptIds);
+        setDeptRoles(initialRoles);
         setSelectedSubjectKeys([]);
         setSelectedTeacherId(null);
         setEnablePasswordUpdate(false);
@@ -294,8 +312,17 @@ export default function TeachersPage() {
                         .map(([key]) => key);
                     setSelectedSubjectKeys(prevSubs => prevSubs.filter(k => !deptSubjectKeys.includes(k)));
                 }
+                setDeptRoles(prevRoles => {
+                    const updated = { ...prevRoles };
+                    delete updated[deptId];
+                    return updated;
+                });
                 return newDepts;
             } else {
+                setDeptRoles(prevRoles => ({
+                    ...prevRoles,
+                    [deptId]: 'teacher'
+                }));
                 return [...prev, deptId];
             }
         });
@@ -320,16 +347,22 @@ export default function TeachersPage() {
         });
         setEnablePasswordUpdate(false);
 
-        // Set selected departments
+        // Set selected departments and their roles
         const deptIds: string[] = [];
+        const roles: Record<string, 'hod' | 'teacher'> = {};
         if (teacher.departments && teacher.departments.length > 0) {
             // Sort to put primary first
             const sorted = [...teacher.departments].sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0));
             deptIds.push(...sorted.map(d => d.id));
+            sorted.forEach(d => {
+                roles[d.id] = (d.role as 'hod' | 'teacher') || 'teacher';
+            });
         } else if (teacher.department_id) {
             deptIds.push(teacher.department_id);
+            roles[teacher.department_id] = (teacher.role as 'hod' | 'teacher') || 'teacher';
         }
         setSelectedDepartmentIds(deptIds);
+        setDeptRoles(roles);
 
         // Set selected subjects
         if (teacher.subjects && teacher.subjects.length > 0) {
@@ -380,7 +413,10 @@ export default function TeachersPage() {
                             email: formData.email,
                             role: formData.role,
                             password: formData.password || undefined,
-                            departmentIds: selectedDepartmentIds
+                            departments: selectedDepartmentIds.map(id => ({
+                                id,
+                                role: deptRoles[id] || 'teacher'
+                            }))
                         };
                     })()),
                 });
@@ -410,7 +446,10 @@ export default function TeachersPage() {
                             email: formData.email,
                             role: formData.role,
                             password: formData.password || undefined,
-                            departmentIds: selectedDepartmentIds
+                            departments: selectedDepartmentIds.map(id => ({
+                                id,
+                                role: deptRoles[id] || 'teacher'
+                            }))
                         };
                     })()),
                 });
@@ -829,26 +868,21 @@ export default function TeachersPage() {
                                                     <div>
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <div className="font-semibold text-gray-900">{teacher.first_name} {teacher.last_name}</div>
-                                                            {teacher.role === 'hod' && (
-                                                                <span className="inline-block px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100 uppercase tracking-wide">
-                                                                    HOD
-                                                                </span>
-                                                            )}
                                                             {teacher.departments && teacher.departments.length > 0 ? (
                                                                 teacher.departments.map((dept, idx) => (
                                                                     <span
                                                                         key={idx}
-                                                                        className={`px-2 py-0.5 rounded text-[10px] font-medium ${dept.is_primary
-                                                                            ? 'bg-purple-50 text-purple-700 border border-purple-100'
-                                                                            : 'bg-gray-50 text-gray-600 border border-gray-100'
+                                                                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${dept.role === 'hod'
+                                                                            ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                                                            : 'bg-gray-50 text-gray-600 border-gray-100'
                                                                             }`}
                                                                     >
-                                                                        {dept.code}
+                                                                        {dept.code} ({dept.role === 'hod' ? 'HOD' : 'Teacher'})
                                                                     </span>
                                                                 ))
                                                             ) : teacher.department_code && (
-                                                                <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-medium border border-purple-100">
-                                                                    {teacher.department_code}
+                                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold border border-blue-100">
+                                                                    {teacher.department_code} ({teacher.role === 'hod' ? 'HOD' : 'Teacher'})
                                                                 </span>
                                                             )}
                                                         </div>
@@ -910,18 +944,13 @@ export default function TeachersPage() {
                                                     {teacher.departments?.map((dept, idx) => (
                                                         <span
                                                             key={idx}
-                                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${dept.is_primary ? 'bg-purple-50 text-purple-700 border-purple-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}
+                                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${dept.role === 'hod' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}
                                                         >
-                                                            {dept.code}
+                                                            {dept.code} ({dept.role === 'hod' ? 'HOD' : 'Teacher'})
                                                         </span>
                                                     ))}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-0.5">
-                                                    {teacher.role === 'hod' && (
-                                                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded border border-blue-100 uppercase">
-                                                            HOD
-                                                        </span>
-                                                    )}
                                                     <span className="text-xs text-gray-500">{teacher.email}</span>
                                                 </div>
                                             </div>
@@ -1101,7 +1130,7 @@ export default function TeachersPage() {
                                             : 'Select departments this teacher belongs to.'}
                                     </p>
 
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                                         {departments
                                             // For HOD: filter to only show their department when adding,
                                             // or teacher's departments + their own when editing
@@ -1116,37 +1145,50 @@ export default function TeachersPage() {
                                             .map(dept => {
                                                 const isHodDept = user?.role === 'hod' && dept.id === user.departmentId;
                                                 const isOtherDept = user?.role === 'hod' && dept.id !== user.departmentId;
+                                                const isSelected = selectedDepartmentIds.includes(dept.id);
+                                                const deptRole = deptRoles[dept.id] || 'teacher';
 
                                                 return (
-                                                    <label
+                                                    <div
                                                         key={dept.id}
                                                         className={`
-                                                    relative flex items-center justify-center p-3 rounded-xl border border-dashed transition-all
-                                                    ${isOtherDept ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
-                                                    ${selectedDepartmentIds.includes(dept.id)
-                                                                ? 'bg-blue-50 border-blue-500 text-blue-700 font-medium'
-                                                                : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400'}
-                                                `}
+                                                            relative flex flex-col p-3 rounded-xl border border-dashed transition-all gap-2
+                                                            ${isOtherDept ? 'opacity-60 bg-gray-50' : 'bg-white'}
+                                                            ${isSelected
+                                                                ? 'bg-blue-50/40 border-blue-500 text-blue-700 font-medium'
+                                                                : 'border-gray-300 text-gray-600 hover:border-gray-400'}
+                                                        `}
                                                     >
-                                                        <input
-                                                            type="checkbox"
-                                                            className="absolute opacity-0 w-full h-full cursor-pointer"
-                                                            checked={selectedDepartmentIds.includes(dept.id)}
-                                                            onChange={() => handleDepartmentToggle(dept.id)}
-                                                            disabled={isOtherDept} // HOD can't toggle other departments
-                                                        />
-                                                        <span className="text-sm sm:text-xs text-center">{dept.name} ({dept.code})</span>
-                                                        {selectedDepartmentIds.includes(dept.id) && (
-                                                            <div className="absolute top-1 right-1">
-                                                                <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                                                checked={isSelected}
+                                                                onChange={() => handleDepartmentToggle(dept.id)}
+                                                                disabled={isOtherDept}
+                                                            />
+                                                            <span className="text-sm font-medium">{dept.name} ({dept.code})</span>
+                                                        </div>
+                                                        {isSelected && (
+                                                            <div className="mt-1">
+                                                                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1 block">Role in Department</label>
+                                                                <select
+                                                                    value={deptRole}
+                                                                    onChange={(e) => handleDeptRoleChange(dept.id, e.target.value as 'hod' | 'teacher')}
+                                                                    disabled={isOtherDept || !isSuperAdmin}
+                                                                    className="w-full text-xs bg-white border border-gray-200 rounded px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all cursor-pointer font-medium"
+                                                                >
+                                                                    <option value="teacher">Teacher</option>
+                                                                    <option value="hod">HOD</option>
+                                                                </select>
                                                             </div>
                                                         )}
                                                         {isOtherDept && (
-                                                            <div className="absolute bottom-1 right-1">
-                                                                <span className="text-[8px] text-gray-400">read-only</span>
+                                                            <div className="absolute top-1 right-2">
+                                                                <span className="text-[9px] text-gray-400 font-medium">read-only</span>
                                                             </div>
                                                         )}
-                                                    </label>
+                                                    </div>
                                                 )
                                             })}
                                     </div>

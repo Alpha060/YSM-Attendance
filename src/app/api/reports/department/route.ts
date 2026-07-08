@@ -61,13 +61,13 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Department ID required' }, { status: 400 });
         }
 
-        // Security check for HOD: Verify they have access to this selectedDeptId
+        // Security check for HOD: Verify they have access to this selectedDeptId (where they are HOD)
         if (role === 'hod') {
             const hasAccess = await queryOne<{ allowed: boolean }>(
                 `SELECT EXISTS (
-                    SELECT 1 FROM users WHERE id = $1 AND department_id = $2
+                    SELECT 1 FROM users WHERE id = $1 AND department_id = $2 AND role = 'hod'
                     UNION
-                    SELECT 1 FROM user_departments WHERE user_id = $1 AND department_id = $2
+                    SELECT 1 FROM user_departments WHERE user_id = $1 AND department_id = $2 AND role = 'hod'
                 ) as allowed`,
                 [userId, selectedDeptId]
             );

@@ -61,15 +61,10 @@ export async function GET(
         const endDate = searchParams.get('endDate');
         const reportSemester = searchParams.get('reportSemester'); // historical semester view
 
-        // Allow HOD to view as teacher (for My Reports)
-        const view = searchParams.get('view');
-        const { role, userId } = payload;
-        const effectiveRole = (role === 'hod' && view === 'teacher') ? 'teacher' : role;
-
         // Get student basic info
-        const studentInfo = await query<StudentDetail>(
+        const studentInfo = await query<StudentDetail & { department_id: string }>(
             `SELECT s.id, s.student_id, s.roll_number, s.first_name, s.last_name, s.email, 
-                    s.current_semester, d.name as department_name
+                    s.current_semester, s.department_id, d.name as department_name
              FROM students s
              LEFT JOIN departments d ON d.id = s.department_id
              WHERE s.id = $1`,
@@ -78,6 +73,25 @@ export async function GET(
 
         if (studentInfo.length === 0) {
             return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+        }
+
+        // Allow HOD to view as teacher (for My Reports)
+        const view = searchParams.get('view');
+        const { role, userId } = payload;
+        let effectiveRole = (role === 'hod' && view === 'teacher') ? 'teacher' : role;
+
+        // Verify department access for HOD. If not HOD of the student's department, fallback to teacher-level access.
+        if (effectiveRole === 'hod') {
+            const studentDeptId = studentInfo[0].department_id;
+            const owned = await query<{ department_id: string }>(
+                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2 AND role = 'hod'
+                 UNION
+                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2 AND role = 'hod'`,
+                [userId, studentDeptId]
+            );
+            if (owned.length === 0) {
+                effectiveRole = 'teacher';
+            }
         }
 
         // Build date filter clause

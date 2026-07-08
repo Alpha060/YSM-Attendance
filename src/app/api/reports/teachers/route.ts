@@ -38,12 +38,12 @@ export async function GET(request: NextRequest) {
         const params: string[] = [];
 
         if (role === 'hod') {
-            // HOD: show teachers whose primary OR secondary departments overlap with HOD's departments
+            // HOD: show teachers whose primary OR secondary departments overlap with HOD's departments (where they are HOD)
             params.push(userId);
             let hodDeptSql = `
-                SELECT department_id FROM users WHERE id = $${params.length}
+                SELECT department_id FROM users WHERE id = $${params.length} AND role = 'hod'
                 UNION
-                SELECT department_id FROM user_departments WHERE user_id = $${params.length}
+                SELECT department_id FROM user_departments WHERE user_id = $${params.length} AND role = 'hod'
             `;
             if (departmentId) {
                 params.push(departmentId);

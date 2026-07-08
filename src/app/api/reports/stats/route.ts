@@ -52,24 +52,24 @@ export async function GET(request: NextRequest) {
         const attendanceParams: string[] = [];
 
         if (effectiveRole === 'hod' && userId) {
-            // HOD: filter by ALL their authorized departments (including user_departments)
+            // HOD: filter by ALL their authorized departments (including user_departments) (where they are HOD)
             studentFilter = `AND s.department_id IN (
-                SELECT department_id FROM users WHERE id = $1
+                SELECT department_id FROM users WHERE id = $1 AND role = 'hod'
                 UNION
-                SELECT department_id FROM user_departments WHERE user_id = $1
+                SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'
             )`;
             studentParams.push(userId);
             subjectFilter = `WHERE department_id IN (
-                SELECT department_id FROM users WHERE id = $1
+                SELECT department_id FROM users WHERE id = $1 AND role = 'hod'
                 UNION
-                SELECT department_id FROM user_departments WHERE user_id = $1
+                SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'
             )`;
             subjectParams.push(userId);
             attendanceFilter = `AND ar.student_id IN (
                 SELECT id FROM students WHERE department_id IN (
-                    SELECT department_id FROM users WHERE id = $1
+                    SELECT department_id FROM users WHERE id = $1 AND role = 'hod'
                     UNION
-                    SELECT department_id FROM user_departments WHERE user_id = $1
+                    SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'
                 )
             )`;
             attendanceParams.push(userId);

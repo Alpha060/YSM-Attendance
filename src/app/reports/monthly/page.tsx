@@ -3,11 +3,31 @@
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, TrendingUp, TrendingDown, BarChart3, Filter, ChevronDown, AlertCircle } from 'lucide-react';
+import { CalendarDays, TrendingUp, TrendingDown, BarChart3, Filter, ChevronDown, AlertCircle, FileText, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileSidebar } from '@/components/ui/MobileSidebar';
 import { useActiveSemesters } from '@/hooks/useActiveSemesters';
 import { useRealtimeData } from '@/hooks/useRealtimeData';
+
+interface StudentAttendance {
+    id: string;
+    studentId: string;
+    rollNumber: string;
+    name: string;
+    totalClasses: number;
+    attended: number;
+    percentage: number;
+    department?: string;
+    semester?: number;
+    subjectAttendance?: {
+        subjectId: string;
+        subjectName: string;
+        paperCode: string | null;
+        totalClasses: number;
+        attended: number;
+    }[];
+}
 
 interface User {
     id: string;
@@ -187,6 +207,436 @@ function MonthlyReportContent() {
         if (!silent) setLoading(false);
     };
 
+    const exportReport = async (format: 'excel' | 'pdf') => {
+        const token = localStorage.getItem('token');
+        if (!token || !user) return;
+
+        const [year, month] = selectedMonth.split('-');
+        const start = `${selectedMonth}-01`;
+        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const end = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
+
+        setLoading(true);
+        try {
+            let url = `/api/reports/students?startDate=${start}&endDate=${end}`;
+            if (selectedDepartmentId) url += `&departmentId=${selectedDepartmentId}`;
+            if (selectedSemester) url += `&semester=${selectedSemester}`;
+            if (viewParam) url += `&view=${viewParam}`;
+
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            const monthlyStudents: StudentAttendance[] = data.students || [];
+
+            const getGroupSubjects = (groupStudents: StudentAttendance[]) => {
+                const subMap = new Map<string, { id: string; name: string; paperCode: string | null }>();
+                groupStudents.forEach(st => {
+                    st.subjectAttendance?.forEach(sub => {
+                        if (!subMap.has(sub.subjectId)) {
+                            subMap.set(sub.subjectId, {
+                                id: sub.subjectId,
+                                name: sub.subjectName,
+                                paperCode: sub.paperCode
+                            });
+                        }
+                    });
+                });
+                return Array.from(subMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+            };
+
+            const isFiltered = !!selectedDepartmentId && !!selectedSemester;
+
+            const uniqueSubjectsMap = new Map<string, { id: string; name: string; paperCode: string | null }>();
+            monthlyStudents.forEach(st => {
+                st.subjectAttendance?.forEach(sub => {
+                    if (!uniqueSubjectsMap.has(sub.subjectId)) {
+                        uniqueSubjectsMap.set(sub.subjectId, {
+                            id: sub.subjectId,
+                            name: sub.subjectName,
+                            paperCode: sub.paperCode
+                        });
+                    }
+                });
+            });
+            const subjects = Array.from(uniqueSubjectsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+            const groups: Record<string, {
+                department: string;
+                departmentCode: string;
+                semester: number;
+                students: StudentAttendance[];
+            }> = {};
+
+            monthlyStudents.forEach(s => {
+                const deptName = s.department || 'N/A';
+                const sem = s.semester || 1;
+                const key = `${deptName}_Sem_${sem}`;
+                if (!groups[key]) {
+                    const deptObj = departments.find(d => d.name === deptName);
+                    groups[key] = {
+                        department: deptName,
+                        departmentCode: deptObj?.code || deptName,
+                        semester: sem,
+                        students: []
+                    };
+                }
+                groups[key].students.push(s);
+            });
+
+            const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+                const gA = groups[a];
+                const gB = groups[b];
+                if (gA.department !== gB.department) {
+                    return gA.department.localeCompare(gB.department);
+                }
+                return gA.semester - gB.semester;
+            });
+
+            sortedGroupKeys.forEach(key => {
+                groups[key].students.sort((a, b) => {
+                    const rollA = a.rollNumber || '';
+                    const rollB = b.rollNumber || '';
+                    return rollA.localeCompare(rollB, undefined, { numeric: true, sensitivity: 'base' });
+                });
+            });
+
+            const filename = `monthly_attendance_report_${selectedMonth}_${new Date().toISOString().split('T')[0]}`;
+
+            if (format === 'excel') {
+                const workbook = XLSX.utils.book_new();
+
+                if (isFiltered) {
+                    const deptName = selectedDepartmentId ? departments.find(d => d.id === selectedDepartmentId)?.name || 'All' : 'All';
+                    const metadataRows = [
+                        ['Generated on:', new Date().toLocaleDateString()],
+                        ['Report Month:', selectedMonth],
+                        ['Department:', deptName],
+                        ['Semester:', selectedSemester || 'All'],
+                        [] // Empty spacer
+                    ];
+
+                    const headers = ['Student ID', 'Roll Number', 'Name', 'Total Classes', 'Attended', 'Percentage', 'Status', ...subjects.map(sub => sub.paperCode ? `${sub.name} (${sub.paperCode})` : sub.name)];
+                    
+                    const totalClassesRow = [
+                        'Total Classes Held',
+                        '',
+                        '',
+                        monthlyStudents.reduce((max, s) => Math.max(max, s.totalClasses), 0).toString(),
+                        '',
+                        '',
+                        '',
+                        ...subjects.map(sub => {
+                            let maxTotal = 0;
+                            monthlyStudents.forEach(s => {
+                                const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                if (subAtt && subAtt.totalClasses > maxTotal) {
+                                    maxTotal = subAtt.totalClasses;
+                                }
+                            });
+                            return maxTotal.toString();
+                        })
+                    ];
+
+                    const rows = monthlyStudents.map(s => {
+                        const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
+                        return [
+                            s.studentId || '-',
+                            s.rollNumber,
+                            s.name,
+                            s.totalClasses.toString(),
+                            s.attended.toString(),
+                            `${Math.round(s.percentage)}%`,
+                            status,
+                            ...subjects.map(sub => {
+                                const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                return subAtt ? subAtt.attended.toString() : '0';
+                            })
+                        ];
+                    });
+
+                    const worksheet = XLSX.utils.aoa_to_sheet([...metadataRows, headers, totalClassesRow, ...rows]);
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Report");
+                } else {
+                    if (sortedGroupKeys.length === 0) {
+                        const worksheet = XLSX.utils.aoa_to_sheet([['No data available']]);
+                        XLSX.utils.book_append_sheet(workbook, worksheet, "No Data");
+                    } else {
+                        sortedGroupKeys.forEach(key => {
+                            const group = groups[key];
+                            const groupSubjects = getGroupSubjects(group.students);
+
+                            const metadataRows = [
+                                ['Generated on:', new Date().toLocaleDateString()],
+                                ['Report Month:', selectedMonth],
+                                ['Department:', group.department],
+                                ['Semester:', group.semester.toString()],
+                                [] // Empty spacer
+                            ];
+
+                            const headers = ['Student ID', 'Roll Number', 'Name', 'Total Classes', 'Attended', 'Percentage', 'Status', ...groupSubjects.map(sub => sub.paperCode ? `${sub.name} (${sub.paperCode})` : sub.name)];
+                            
+                            const totalClassesRow = [
+                                'Total Classes Held',
+                                '',
+                                '',
+                                group.students.reduce((max, s) => Math.max(max, s.totalClasses), 0).toString(),
+                                '',
+                                '',
+                                '',
+                                ...groupSubjects.map(sub => {
+                                    let maxTotal = 0;
+                                    group.students.forEach(s => {
+                                        const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                        if (subAtt && subAtt.totalClasses > maxTotal) {
+                                            maxTotal = subAtt.totalClasses;
+                                        }
+                                    });
+                                    return maxTotal.toString();
+                                })
+                            ];
+
+                            const rows = group.students.map(s => {
+                                const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
+                                return [
+                                    s.studentId || '-',
+                                    s.rollNumber,
+                                    s.name,
+                                    s.totalClasses.toString(),
+                                    s.attended.toString(),
+                                    `${Math.round(s.percentage)}%`,
+                                    status,
+                                    ...groupSubjects.map(sub => {
+                                        const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                        return subAtt ? subAtt.attended.toString() : '0';
+                                    })
+                                ];
+                            });
+
+                            const worksheet = XLSX.utils.aoa_to_sheet([...metadataRows, headers, totalClassesRow, ...rows]);
+                            let sheetName = `${group.departmentCode} Sem ${group.semester}`
+                                .replace(/[:\\/?*\[\]]/g, '')
+                                .slice(0, 31);
+                            XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                        });
+                    }
+                }
+
+                XLSX.writeFile(workbook, `${filename}.xlsx`);
+            } else if (format === 'pdf') {
+                const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/college-logo.png` : '/college-logo.png';
+                
+                let tablesHtml = '';
+                
+                if (isFiltered) {
+                    const maxOverall = monthlyStudents.reduce((max, s) => Math.max(max, s.totalClasses), 0);
+                    tablesHtml = `
+                        <p class="meta">
+                            <strong>Filters Applied:</strong> Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${monthlyStudents.length}
+                            ${selectedSemester ? ` | Semester: ${selectedSemester}` : ''}
+                            ${selectedDepartmentId ? ` | Department: ${departments.find(d => d.id === selectedDepartmentId)?.name || ''}` : ''}
+                        </p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Student ID</th>
+                                    <th>Roll Number</th>
+                                    <th>Name</th>
+                                    <th>Total Classes</th>
+                                    <th>Attended</th>
+                                    <th>Percentage</th>
+                                    <th>Status</th>
+                                    ${subjects.map(sub => `<th>${sub.name}${sub.paperCode ? `<br/><span style="font-size: 8px; font-weight: normal; color: #e0e7ff;">(${sub.paperCode})</span>` : ''}</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="font-weight: bold; background-color: #e2e8f0;">
+                                    <td>Total Classes Held</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td>${maxOverall}</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    ${subjects.map(sub => {
+                                        let maxTotal = 0;
+                                        monthlyStudents.forEach(s => {
+                                            const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                            if (subAtt && subAtt.totalClasses > maxTotal) {
+                                                maxTotal = subAtt.totalClasses;
+                                            }
+                                        });
+                                        return `<td>${maxTotal}</td>`;
+                                    }).join('')}
+                                </tr>
+                                ${monthlyStudents.map(s => {
+                                    const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
+                                    const statusClass = status === 'Good Standing' ? 'good' : status === 'Warning' ? 'warning' : 'critical';
+                                    return `
+                                        <tr>
+                                            <td>${s.studentId || '-'}</td>
+                                            <td>${s.rollNumber}</td>
+                                            <td>${s.name}</td>
+                                            <td>${s.totalClasses}</td>
+                                            <td>${s.attended}</td>
+                                            <td>${Math.round(s.percentage)}%</td>
+                                            <td><span class="status-badge ${statusClass}">${status}</span></td>
+                                            ${subjects.map(sub => {
+                                                const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                                return `<td>${subAtt ? subAtt.attended : '0'}</td>`;
+                                            }).join('')}
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    tablesHtml = sortedGroupKeys.map((key, groupIdx) => {
+                        const group = groups[key];
+                        const groupSubjects = getGroupSubjects(group.students);
+                        const maxOverall = group.students.reduce((max, s) => Math.max(max, s.totalClasses), 0);
+                        
+                        return `
+                            ${groupIdx > 0 ? '<div style="page-break-before: always; height: 1px;"></div>' : ''}
+                            <div class="group-section" style="margin-bottom: 30px;">
+                                <h3 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 5px; margin-top: 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    ${group.department} &mdash; Semester ${group.semester}
+                                </h3>
+                                <p class="meta" style="margin-bottom: 8px;">
+                                    Generated on: ${new Date().toLocaleDateString()} | Report Month: ${selectedMonth} | Total Students: ${group.students.length}
+                                </p>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Student ID</th>
+                                            <th>Roll Number</th>
+                                            <th>Name</th>
+                                            <th>Total Classes</th>
+                                            <th>Attended</th>
+                                            <th>Percentage</th>
+                                            <th>Status</th>
+                                            ${groupSubjects.map(sub => `<th>${sub.name}${sub.paperCode ? `<br/><span style="font-size: 8px; font-weight: normal; color: #e0e7ff;">(${sub.paperCode})</span>` : ''}</th>`).join('')}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr style="font-weight: bold; background-color: #e2e8f0;">
+                                            <td>Total Classes Held</td>
+                                            <td></td>
+                                            <td></td>
+                                            <td>${maxOverall}</td>
+                                            <td></td>
+                                            <td></td>
+                                            <td></td>
+                                            ${groupSubjects.map(sub => {
+                                                let maxTotal = 0;
+                                                group.students.forEach(s => {
+                                                    const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                                    if (subAtt && subAtt.totalClasses > maxTotal) {
+                                                        maxTotal = subAtt.totalClasses;
+                                                    }
+                                                });
+                                                return `<td>${maxTotal}</td>`;
+                                            }).join('')}
+                                        </tr>
+                                        ${group.students.map(s => {
+                                            const status = s.percentage >= 75 ? 'Good Standing' : s.percentage >= 60 ? 'Warning' : 'Critical';
+                                            const statusClass = status === 'Good Standing' ? 'good' : status === 'Warning' ? 'warning' : 'critical';
+                                            return `
+                                                <tr>
+                                                    <td>${s.studentId || '-'}</td>
+                                                    <td>${s.rollNumber}</td>
+                                                    <td>${s.name}</td>
+                                                    <td>${s.totalClasses}</td>
+                                                    <td>${s.attended}</td>
+                                                    <td>${Math.round(s.percentage)}%</td>
+                                                    <td><span class="status-badge ${statusClass}">${status}</span></td>
+                                                    ${groupSubjects.map(sub => {
+                                                        const subAtt = s.subjectAttendance?.find(sa => sa.subjectId === sub.id);
+                                                        return `<td>${subAtt ? subAtt.attended : '0'}</td>`;
+                                                    }).join('')}
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                const printContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Monthly Attendance Report - ${selectedMonth}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', Arial, sans-serif; padding: 15px; }
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1e3a8a; padding-bottom: 15px; margin-bottom: 15px; }
+        .logo-section { display: flex; align-items: center; gap: 15px; }
+        .logo-img { height: 50px; width: auto; object-fit: contain; }
+        .college-info h1 { font-family: 'Playfair Display', serif; font-size: 16px; color: #1e3a8a; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px; }
+        .college-info p { font-size: 9px; color: #64748b; margin-bottom: 1px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .report-title-box { text-align: right; }
+        .report-title-box h2 { color: #1e3a8a; font-size: 14px; margin: 0 0 4px 0; }
+        .report-title-box p { color: #6b7280; font-size: 10px; margin: 0; }
+        .meta { color: #666; margin-bottom: 10px; font-size: 9px; line-height: 1.4; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        th { background-color: #1e3a8a; color: white; padding: 6px 4px; text-align: left; font-weight: 600; border: 1px solid #e2e8f0; }
+        td { padding: 4px; border: 1px solid #ddd; text-align: left; }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        .good { color: #047857; background-color: #d1fae5; }
+        .warning { color: #b45309; background-color: #fef3c7; }
+        .critical { color: #b91c1c; background-color: #fee2e2; }
+        .status-badge { padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: bold; display: inline-block; }
+        @media print { 
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 10mm; } 
+            .group-section { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo-section">
+            <img src="${logoUrl}" class="logo-img" alt="YSM Logo">
+            <div class="college-info">
+                <h1>Yogoda Satsanga Mahavidyalaya</h1>
+                <p>Established 1967 | NAAC Accredited Grade 'B'</p>
+                <p>Jagannathpur, Dhurwa, Ranchi-834004</p>
+            </div>
+        </div>
+        <div class="report-title-box">
+            <h2>STUDENT REPORT</h2>
+            <p>Monthly Attendance Overview</p>
+        </div>
+    </div>
+    
+    ${tablesHtml}
+    
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        }
+    </script>
+</body>
+</html>`;
+
+                const printWindow = window.open('', '_blank');
+                if (printWindow) {
+                    printWindow.document.write(printContent);
+                    printWindow.document.close();
+                }
+            }
+        } catch (err) {
+            console.error('Error exporting monthly report:', err);
+        }
+        setLoading(false);
+    };
+
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
         return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -231,6 +681,30 @@ function MonthlyReportContent() {
                             <p className="text-emerald-100 text-sm max-w-xl">
                                 Analyze attendance trends, identify patterns, and <span className="font-semibold text-white">monitor overall departmental performance</span>.
                             </p>
+                        </div>
+
+                        {/* Export Buttons in Hero */}
+                        <div className="flex gap-2 bg-white/10 p-1.5 rounded-xl backdrop-blur-md border border-white/20 self-start sm:self-auto">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
+                                onClick={() => exportReport('pdf')}
+                                disabled={loading}
+                            >
+                                <FileText className="w-4 h-4 sm:mr-2" />
+                                <span className="hidden sm:inline">PDF</span>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
+                                onClick={() => exportReport('excel')}
+                                disabled={loading}
+                            >
+                                <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+                                <span className="hidden sm:inline">Excel</span>
+                            </Button>
                         </div>
                     </div>
                 </div>

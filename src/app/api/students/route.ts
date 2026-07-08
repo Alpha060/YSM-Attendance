@@ -40,10 +40,10 @@ export async function GET(request: NextRequest) {
              LEFT JOIN departments d ON s.department_id = d.id`;
         const params: string[] = [];
 
-        // HODs can see students from all their assigned departments
+        // HODs can see students from all their assigned departments (where they are HOD)
         if (payload.role === 'hod' && payload.userId) {
             queryText += ` WHERE s.department_id IN (
-                SELECT department_id FROM user_departments WHERE user_id = $1
+                SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'
             ) OR s.department_id = $2`;
             params.push(payload.userId, payload.departmentId || '00000000-0000-0000-0000-000000000000');
         }
@@ -76,6 +76,18 @@ export async function POST(request: NextRequest) {
 
         if (!studentId || !rollNumber || !firstName || !departmentId) {
             return NextResponse.json({ error: 'Student ID, roll number, first name, and department are required' }, { status: 400 });
+        }
+
+        // HOD can only add students to their own departments
+        if (payload.role === 'hod') {
+            const allowedDepts = await query<{ department_id: string }>(
+                "SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'",
+                [payload.userId]
+            );
+            const allowedDeptIds = [payload.departmentId, ...allowedDepts.map(d => d.department_id)].filter(Boolean);
+            if (!allowedDeptIds.includes(departmentId)) {
+                return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+            }
         }
 
         // Extract batch_year from the student ID (e.g., BCA2025SC001 → 2025)
@@ -136,7 +148,7 @@ export async function DELETE(request: NextRequest) {
             }
 
             const allowedDepts = await query<{ department_id: string }>(
-                'SELECT department_id FROM user_departments WHERE user_id = $1',
+                "SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'",
                 [payload.userId]
             );
             const allowedDeptIds = [payload.departmentId, ...allowedDepts.map(d => d.department_id)].filter(Boolean);
@@ -190,7 +202,7 @@ export async function PUT(request: NextRequest) {
             }
 
             const allowedDepts = await query<{ department_id: string }>(
-                'SELECT department_id FROM user_departments WHERE user_id = $1',
+                "SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'",
                 [payload.userId]
             );
             const allowedDeptIds = [payload.departmentId, ...allowedDepts.map(d => d.department_id)].filter(Boolean);

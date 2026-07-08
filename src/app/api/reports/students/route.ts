@@ -52,14 +52,14 @@ export async function GET(request: NextRequest) {
                 params.push(departmentId);
                 params.push(userId);
                 filters.push(`s.department_id = $${params.length - 1} AND s.department_id IN (
-                    SELECT department_id FROM users WHERE id = $${params.length}
-                    UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length}
+                    SELECT department_id FROM users WHERE id = $${params.length} AND role = 'hod'
+                    UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length} AND role = 'hod'
                 )`);
             } else {
                 params.push(userId);
                 filters.push(`s.department_id IN (
-                    SELECT department_id FROM users WHERE id = $${params.length}
-                    UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length}
+                    SELECT department_id FROM users WHERE id = $${params.length} AND role = 'hod'
+                    UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length} AND role = 'hod'
                 )`);
             }
         } else if (effectiveRole === 'teacher') {
@@ -186,6 +186,48 @@ export async function GET(request: NextRequest) {
 
         const students = await query<StudentData>(queryStr, params);
 
+        // Fetch subject-wise attendance for all matching students
+        const subjectQueryStr = `
+            SELECT 
+                s.id as student_id,
+                sub.id as subject_id,
+                sub.name as subject_name,
+                sub.paper_code as subject_paper_code,
+                COUNT(DISTINCT ar.date::text || '-' || ar.subject_id::text || '-' || ar.lecture_number::text) as total_classes,
+                COUNT(DISTINCT CASE WHEN ar.status = 'present' THEN ar.date::text || '-' || ar.subject_id::text || '-' || ar.lecture_number::text END) as attended
+            FROM students s
+            JOIN attendance_records ar ON ar.student_id = s.id
+            JOIN subjects sub ON sub.id = ar.subject_id
+            JOIN student_subjects ss ON ss.student_id = s.id AND ss.subject_id = sub.id AND ${subjectScopeClause}
+            WHERE 1=1
+              AND (${teacherSubjectFilter})
+              ${filterClause}
+            GROUP BY s.id, sub.id, sub.name, sub.paper_code
+        `;
+
+        const subjectAttendanceRows = await query<{
+            student_id: string;
+            subject_id: string;
+            subject_name: string;
+            subject_paper_code: string | null;
+            total_classes: string;
+            attended: string;
+        }>(subjectQueryStr, params);
+
+        const subjectAttendanceMap: Record<string, any[]> = {};
+        subjectAttendanceRows.forEach(row => {
+            if (!subjectAttendanceMap[row.student_id]) {
+                subjectAttendanceMap[row.student_id] = [];
+            }
+            subjectAttendanceMap[row.student_id].push({
+                subjectId: row.subject_id,
+                subjectName: row.subject_name,
+                paperCode: row.subject_paper_code,
+                totalClasses: parseInt(row.total_classes) || 0,
+                attended: parseInt(row.attended) || 0
+            });
+        });
+
         // Get current semesters (from students table)
         const deptFilterClause = deptFilters.length > 0 ? 'AND ' + deptFilters.join(' AND ') : '';
         const currentSemRows = await query<{ current_semester: number }>(
@@ -193,7 +235,7 @@ export async function GET(request: NextRequest) {
              LEFT JOIN departments d ON d.id = s.department_id
              WHERE 1=1 ${deptFilterClause}
              ORDER BY s.current_semester`,
-            deptFilterParams
+             deptFilterParams
         );
         const currentSemesters = currentSemRows.map(r => r.current_semester);
 
@@ -225,7 +267,8 @@ export async function GET(request: NextRequest) {
             attended: parseInt(s.attended) || 0,
             percentage: parseInt(s.total_lectures) > 0
                 ? Math.round((parseInt(s.attended) / parseInt(s.total_lectures)) * 100)
-                : 0
+                : 0,
+            subjectAttendance: subjectAttendanceMap[s.id] || []
         }));
 
         return NextResponse.json({ 

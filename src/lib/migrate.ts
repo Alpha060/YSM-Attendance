@@ -216,6 +216,13 @@ const MIGRATIONS: { name: string; sql: string }[] = [
             CREATE INDEX IF NOT EXISTS idx_student_subjects_semester ON student_subjects(semester);
         `
     },
+    {
+        name: '008_user_departments_role',
+        sql: `
+            -- Add role column to user_departments
+            ALTER TABLE user_departments ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'teacher' CHECK (role IN ('hod', 'teacher'));
+        `
+    },
 ];
 
 export async function runMigrations() {

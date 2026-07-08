@@ -70,8 +70,8 @@ export async function GET(request: NextRequest) {
                 filters.push(`ar.student_id IN (
                     SELECT id FROM students WHERE department_id = $${params.length + 1}
                     AND department_id IN (
-                        SELECT department_id FROM users WHERE id = $${params.length + 2}
-                        UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length + 2}
+                        SELECT department_id FROM users WHERE id = $${params.length + 2} AND role = 'hod'
+                        UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length + 2} AND role = 'hod'
                     )
                 )`);
                 params.push(departmentId);
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
             } else {
                 filters.push(`ar.student_id IN (
                     SELECT id FROM students WHERE department_id IN (
-                        SELECT department_id FROM users WHERE id = $${params.length + 1}
-                        UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length + 1}
+                        SELECT department_id FROM users WHERE id = $${params.length + 1} AND role = 'hod'
+                        UNION SELECT department_id FROM user_departments WHERE user_id = $${params.length + 1} AND role = 'hod'
                     )
                 )`);
                 params.push(userId);

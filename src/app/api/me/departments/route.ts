@@ -24,13 +24,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
 
-        // Single query: Get primary department + all additional departments
-        const departments = await query<DepartmentRow & { degree_type: string }>(
-            `SELECT d.id, d.name, d.code, d.dept_type, d.degree_type
+        // Single query: Get primary department + all additional departments with roles
+        const departments = await query<DepartmentRow & { degree_type: string, department_role: string }>(
+            `SELECT d.id, d.name, d.code, d.dept_type, d.degree_type, u.role as department_role
              FROM departments d
-             WHERE d.id = (SELECT department_id FROM users WHERE id = $1)
+             JOIN users u ON u.id = $1
+             WHERE d.id = u.department_id
              UNION
-             SELECT d.id, d.name, d.code, d.dept_type, d.degree_type
+             SELECT d.id, d.name, d.code, d.dept_type, d.degree_type, ud.role as department_role
              FROM departments d
              JOIN user_departments ud ON d.id = ud.department_id
              WHERE ud.user_id = $1`,
@@ -43,7 +44,8 @@ export async function GET(request: NextRequest) {
                 name: d.name,
                 code: d.code,
                 deptType: d.dept_type,
-                degreeType: d.degree_type
+                degreeType: d.degree_type,
+                role: d.department_role || 'teacher'
             }))
         });
     } catch (error) {

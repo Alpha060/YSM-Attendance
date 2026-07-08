@@ -88,11 +88,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Please select at least one department' }, { status: 400 });
         }
 
-        // HOD security: verify they have access to all requested departments
+        // HOD security: verify they have access to all requested departments (where they are HOD)
         if (payload.role === 'hod') {
             const accessRows = await query<{ department_id: string }>(
-                `SELECT department_id FROM users WHERE id = $1
-                 UNION SELECT department_id FROM user_departments WHERE user_id = $1`,
+                `SELECT department_id FROM users WHERE id = $1 AND role = 'hod'
+                 UNION SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'`,
                 [payload.userId]
             );
             const allowedIds = new Set(accessRows.map(r => r.department_id));

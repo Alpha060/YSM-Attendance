@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
                         (
                             SELECT CONCAT(u.first_name, ' ', u.last_name)
                             FROM users u
-                            LEFT JOIN user_departments ud ON u.id = ud.user_id
-                            WHERE u.role = 'hod' AND (u.department_id = d.id OR ud.department_id = d.id)
+                            LEFT JOIN user_departments ud ON u.id = ud.user_id AND ud.role = 'hod'
+                            WHERE (u.role = 'hod' AND u.department_id = d.id) OR (ud.department_id = d.id AND ud.role = 'hod')
                             LIMIT 1
                         ) as hod_name
                  FROM departments d
@@ -46,15 +46,15 @@ export async function GET(request: NextRequest) {
                         (
                             SELECT CONCAT(u.first_name, ' ', u.last_name)
                             FROM users u
-                            LEFT JOIN user_departments ud ON u.id = ud.user_id
-                            WHERE u.role = 'hod' AND (u.department_id = d.id OR ud.department_id = d.id)
+                            LEFT JOIN user_departments ud ON u.id = ud.user_id AND ud.role = 'hod'
+                            WHERE (u.role = 'hod' AND u.department_id = d.id) OR (ud.department_id = d.id AND ud.role = 'hod')
                             LIMIT 1
                         ) as hod_name
                  FROM departments d
                  WHERE d.id IN (
-                     SELECT department_id FROM user_departments WHERE user_id = $1
+                     SELECT department_id FROM user_departments WHERE user_id = $1 AND role = 'hod'
                      UNION
-                     SELECT department_id FROM users WHERE id = $1
+                     SELECT department_id FROM users WHERE id = $1 AND role = 'hod'
                  )
                  ORDER BY d.name ASC`,
                  [(payload as any).userId || (payload as any).id]

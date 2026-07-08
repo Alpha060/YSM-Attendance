@@ -34,17 +34,27 @@ export async function GET(request: NextRequest) {
         const params: any[] = [date];
         let paramIndex = 2;
 
-        if (departmentId) {
+        if (payload.role === 'hod') {
+            if (departmentId) {
+                queryStr += ` AND dca.department_id = $${paramIndex} AND dca.department_id IN (
+                    SELECT department_id FROM user_departments WHERE user_id = $${paramIndex + 1} AND role = 'hod'
+                    UNION
+                    SELECT department_id FROM users WHERE id = $${paramIndex + 1} AND role = 'hod'
+                )`;
+                params.push(departmentId, payload.userId);
+                paramIndex += 2;
+            } else {
+                queryStr += ` AND dca.department_id IN (
+                    SELECT department_id FROM user_departments WHERE user_id = $${paramIndex} AND role = 'hod'
+                    UNION
+                    SELECT department_id FROM users WHERE id = $${paramIndex} AND role = 'hod'
+                )`;
+                params.push(payload.userId);
+                paramIndex++;
+            }
+        } else if (departmentId) {
             queryStr += ` AND dca.department_id = $${paramIndex}`;
             params.push(departmentId);
-            paramIndex++;
-        } else if (payload.role === 'hod') {
-            queryStr += ` AND dca.department_id IN (
-                SELECT department_id FROM user_departments WHERE user_id = $${paramIndex}
-                UNION
-                SELECT department_id FROM users WHERE id = $${paramIndex}
-            )`;
-            params.push(payload.userId);
             paramIndex++;
         }
         
@@ -113,9 +123,9 @@ export async function POST(request: NextRequest) {
         // HOD must own the department
         if (payload.role === 'hod') {
             const owned = await query<{ department_id: string }>(
-                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2
+                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2 AND role = 'hod'
                  UNION
-                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2`,
+                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2 AND role = 'hod'`,
                 [payload.userId, departmentId]
             );
             if (owned.length === 0) {
@@ -173,9 +183,9 @@ export async function DELETE(request: NextRequest) {
         // HOD must own the department
         if (payload.role === 'hod') {
             const owned = await query<{ department_id: string }>(
-                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2
+                `SELECT department_id FROM user_departments WHERE user_id = $1 AND department_id = $2 AND role = 'hod'
                  UNION
-                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2`,
+                 SELECT department_id FROM users WHERE id = $1 AND department_id = $2 AND role = 'hod'`,
                 [payload.userId, departmentId]
             );
             if (owned.length === 0) {
