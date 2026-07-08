@@ -31,6 +31,7 @@ interface DetailedRecord {
     first_name: string;
     last_name: string;
     department_code: string;
+    semester: number;
     subject_code: string;
     subject_paper_code: string | null;
     subject_name: string;
@@ -211,6 +212,7 @@ export async function GET(request: NextRequest) {
                     s.first_name,
                     s.last_name,
                     d.code as department_code,
+                    s.semester,
                     sub.code as subject_code,
                     sub.paper_code as subject_paper_code,
                     sub.name as subject_name,
@@ -233,6 +235,7 @@ export async function GET(request: NextRequest) {
                 rollNumber: d.roll_number,
                 studentName: `${d.first_name} ${d.last_name}`,
                 departmentCode: d.department_code || '',
+                semester: d.semester,
                 subjectCode: d.subject_code,
                 subjectPaperCode: d.subject_paper_code || null,
                 subjectName: d.subject_name,

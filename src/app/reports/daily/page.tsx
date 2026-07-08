@@ -62,6 +62,7 @@ function DailyReportContent() {
     const viewParam = searchParams.get('view') || '';
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'csv' | null>(null);
     const [departments, setDepartments] = useState<Department[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -281,21 +282,13 @@ function DailyReportContent() {
         const token = localStorage.getItem('token');
         if (!token) return;
 
+        setExportFormat(format);
         try {
-            // Fetch detailed data with student names and roll numbers
             let url = `/api/reports/daily?date=${selectedDate}&detailed=true`;
-            if (selectedDepartmentId) {
-                url += `&departmentId=${selectedDepartmentId}`;
-            }
-            if (selectedSemester) {
-                url += `&semester=${selectedSemester}`;
-            }
-            if (selectedSubjectId) {
-                url += `&subjectId=${selectedSubjectId}`;
-            }
-            if (viewParam) {
-                url += `&view=${viewParam}`;
-            }
+            if (selectedDepartmentId) url += `&departmentId=${selectedDepartmentId}`;
+            if (selectedSemester) url += `&semester=${selectedSemester}`;
+            if (selectedSubjectId) url += `&subjectId=${selectedSubjectId}`;
+            if (viewParam) url += `&view=${viewParam}`;
 
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -309,32 +302,78 @@ function DailyReportContent() {
             const data = await res.json();
             const detailedRecords = data.detailedRecords || [];
 
-            let filteredRecords = detailedRecords;
-
-            if (filteredRecords.length === 0) {
+            if (detailedRecords.length === 0) {
                 alert('No attendance records found for the selected date and filters.');
                 return;
             }
 
-            const headers = ['S.No', 'Student ID', 'Roll Number', 'Student Name', 'Department', 'Paper/Subject Code', 'Subject Name', 'Lecture', 'Status'];
-            const rows = filteredRecords.map((r: any, index: number) => [
-                (index + 1).toString(),
-                r.studentCustomId || r.rollNumber,
-                r.rollNumber,
-                r.studentName,
-                r.departmentCode || '',
-                r.subjectPaperCode || r.subjectCode,
-                r.subjectName,
-                `Lecture ${r.lectureNumber}`,
-                r.status.charAt(0).toUpperCase() + r.status.slice(1)
-            ]);
+            // Group records by Department and Semester
+            const groups: Record<string, {
+                department: string;
+                semester: number;
+                records: any[];
+            }> = {};
 
+            detailedRecords.forEach((r: any) => {
+                const dept = r.departmentCode || 'N/A';
+                const sem = r.semester || 1;
+                const key = `${dept}_Sem_${sem}`;
+                if (!groups[key]) {
+                    groups[key] = {
+                        department: dept,
+                        semester: sem,
+                        records: []
+                    };
+                }
+                groups[key].records.push(r);
+            });
+
+            const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+                const gA = groups[a];
+                const gB = groups[b];
+                if (gA.department !== gB.department) {
+                    return gA.department.localeCompare(gB.department);
+                }
+                return gA.semester - gB.semester;
+            });
+
+            // Ensure sorting by roll number inside each group
+            sortedGroupKeys.forEach(key => {
+                groups[key].records.sort((a, b) => {
+                    const rollA = String(a.rollNumber || '');
+                    const rollB = String(b.rollNumber || '');
+                    return rollA.localeCompare(rollB, undefined, { numeric: true, sensitivity: 'base' });
+                });
+            });
+
+            const isFiltered = !!selectedDepartmentId && !!selectedSemester;
             const filename = `daily_attendance_detailed_${selectedDate}`;
 
             if (format === 'csv') {
+                const headers = ['Department', 'Semester', 'S.No', 'Student ID', 'Roll Number', 'Student Name', 'Paper/Subject Code', 'Subject Name', 'Lecture', 'Status'];
+                
+                const rows: string[][] = [];
+                sortedGroupKeys.forEach(key => {
+                    const group = groups[key];
+                    group.records.forEach((r, idx) => {
+                        rows.push([
+                            group.department,
+                            `Sem ${group.semester}`,
+                            (idx + 1).toString(),
+                            r.studentCustomId || r.rollNumber,
+                            r.rollNumber,
+                            r.studentName,
+                            r.subjectPaperCode || r.subjectCode,
+                            r.subjectName,
+                            `Lecture ${r.lectureNumber}`,
+                            r.status.charAt(0).toUpperCase() + r.status.slice(1)
+                        ]);
+                    });
+                });
+
                 const csvContent = [
                     headers.join(','),
-                    ...rows.map((row: string[]) => row.map(cell => `"${cell}"`).join(','))
+                    ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
                 ].join('\n');
 
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -344,32 +383,106 @@ function DailyReportContent() {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+
             } else if (format === 'excel') {
-                const headers = ['S.No', 'Student ID', 'Roll Number', 'Student Name', 'Department', 'Paper/Subject Code', 'Subject Name', 'Lecture', 'Status'];
-                const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-                // Set column widths
-                worksheet['!cols'] = [
-                    { wch: 5 },  // S.No
-                    { wch: 18 }, // Student ID (custom)
-                    { wch: 12 }, // Roll Number
-                    { wch: 25 }, // Student Name
-                    { wch: 10 }, // Department
-                    { wch: 12 }, // Subject Code
-                    { wch: 30 }, // Subject Name
-                    { wch: 10 }, // Lecture
-                    { wch: 10 }  // Status
-                ];
                 const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Attendance');
+
+                const buildSheetRows = (sheetRecords: any[]) => {
+                    const headers = ['S.No', 'Student ID', 'Roll Number', 'Student Name', 'Department', 'Paper/Subject Code', 'Subject Name', 'Lecture', 'Status'];
+                    const rowData = sheetRecords.map((r, idx) => [
+                        (idx + 1).toString(),
+                        r.studentCustomId || r.rollNumber,
+                        r.rollNumber,
+                        r.studentName,
+                        r.departmentCode || '',
+                        r.subjectPaperCode || r.subjectCode,
+                        r.subjectName,
+                        `Lecture ${r.lectureNumber}`,
+                        r.status.charAt(0).toUpperCase() + r.status.slice(1)
+                    ]);
+                    return [headers, ...rowData];
+                };
+
+                if (isFiltered) {
+                    const sheetRows = buildSheetRows(detailedRecords);
+                    const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+                    worksheet['!cols'] = [
+                        { wch: 6 }, { wch: 18 }, { wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 10 }
+                    ];
+                    XLSX.utils.book_append_sheet(workbook, worksheet, 'Daily Attendance');
+                } else {
+                    sortedGroupKeys.forEach(key => {
+                        const group = groups[key];
+                        const sheetRows = buildSheetRows(group.records);
+                        const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+                        worksheet['!cols'] = [
+                            { wch: 6 }, { wch: 18 }, { wch: 12 }, { wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 10 }
+                        ];
+                        let sheetName = `${group.department} Sem ${group.semester}`
+                            .replace(/[:\\\\/?*\[\]]/g, '')
+                            .slice(0, 31);
+                        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+                    });
+                }
+
                 XLSX.writeFile(workbook, `${filename}.xlsx`);
+
             } else if (format === 'pdf') {
-                // Group students by status for summary
-                const presentCount = filteredRecords.filter((r: any) => r.status === 'present').length;
-                const absentCount = filteredRecords.filter((r: any) => r.status === 'absent').length;
-                const lateCount = filteredRecords.filter((r: any) => r.status === 'late').length;
-                const totalEntries = filteredRecords.length;
-                const attendancePercentage = totalEntries > 0 ? Math.round((presentCount / totalEntries) * 100) : 0;
                 const logoUrl = typeof window !== 'undefined' ? `${window.location.origin}/college-logo.png` : '/college-logo.png';
+
+                const buildTableHtml = (tableRecords: any[]) => {
+                    const headers = ['S.No', 'Student ID', 'Roll Number', 'Student Name', 'Paper/Subject Code', 'Subject Name', 'Lecture', 'Status'];
+                    return `
+                        <table>
+                            <thead>
+                                <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+                            </thead>
+                            <tbody>
+                                ${tableRecords.map((r, idx) => {
+                                    const status = r.status.toLowerCase();
+                                    const statusClass = status === 'present' ? 'status-present' : status === 'absent' ? 'status-absent' : 'status-late';
+                                    return `
+                                        <tr>
+                                            <td>${idx + 1}</td>
+                                            <td>${r.studentCustomId || r.rollNumber}</td>
+                                            <td>${r.rollNumber}</td>
+                                            <td>${r.studentName}</td>
+                                            <td>${r.subjectPaperCode || r.subjectCode}</td>
+                                            <td>${r.subjectName}</td>
+                                            <td>Lecture ${r.lectureNumber}</td>
+                                            <td><span class="${statusClass}">${r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span></td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                };
+
+                let tablesHtml = '';
+                if (isFiltered) {
+                    tablesHtml = buildTableHtml(detailedRecords);
+                } else {
+                    tablesHtml = sortedGroupKeys.map((key, groupIdx) => {
+                        const group = groups[key];
+                        return `
+                            ${groupIdx > 0 ? '<div style="margin-top: 25px; border-top: 1px dashed #cbd5e1; padding-top: 15px; page-break-inside: avoid;"></div>' : ''}
+                            <div class="group-section" style="margin-bottom: 25px;">
+                                <h3 style="color: #1e3a8a; border-bottom: 2px solid #3b82f6; padding-bottom: 5px; margin-top: 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    ${group.department} &mdash; Semester ${group.semester}
+                                </h3>
+                                ${buildTableHtml(group.records)}
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Overall summary counts
+                const presentCount = detailedRecords.filter((r: any) => r.status === 'present').length;
+                const absentCount = detailedRecords.filter((r: any) => r.status === 'absent').length;
+                const lateCount = detailedRecords.filter((r: any) => r.status === 'late').length;
+                const totalEntries = detailedRecords.length;
+                const attendancePercentage = totalEntries > 0 ? Math.round((presentCount / totalEntries) * 100) : 0;
 
                 const printContent = `
 <!DOCTYPE html>
@@ -379,40 +492,42 @@ function DailyReportContent() {
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', Arial, sans-serif; padding: 30px; background: #fff; color: #1f2937; font-size: 12px; }
+        body { font-family: 'Inter', Arial, sans-serif; padding: 20px; background: #fff; color: #1f2937; font-size: 10px; }
         .container { max-width: 100%; margin: 0 auto; }
-        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 25px; }
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px; }
         .logo-section { display: flex; align-items: center; gap: 15px; }
-        .logo-img { height: 60px; width: auto; object-fit: contain; }
-        .college-info h1 { font-family: 'Playfair Display', serif; font-size: 20px; color: #1e3a8a; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px; }
-        .college-info p { font-size: 10px; color: #64748b; margin-bottom: 1px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .logo-img { height: 50px; width: auto; object-fit: contain; }
+        .college-info h1 { font-family: 'Playfair Display', serif; font-size: 16px; color: #1e3a8a; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.5px; }
+        .college-info p { font-size: 9px; color: #64748b; margin-bottom: 1px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
         .report-title-box { text-align: right; }
-        .report-title-box h2 { color: #1e3a8a; font-size: 16px; margin: 0 0 4px 0; }
-        .report-title-box p { color: #6b7280; font-size: 11px; margin: 0; }
-        .report-title-box strong { display: inline-block; background: #4f46e5; color: white; padding: 4px 10px; border-radius: 20px; font-size: 10px; margin-top: 8px; }
+        .report-title-box h2 { color: #1e3a8a; font-size: 14px; margin: 0 0 4px 0; }
+        .report-title-box p { color: #6b7280; font-size: 10px; margin: 0; }
+        .report-title-box strong { display: inline-block; background: #4f46e5; color: white; padding: 3px 8px; border-radius: 20px; font-size: 9px; margin-top: 6px; }
         .summary-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
-        .summary-card { background: #f9fafb; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; }
-        .summary-value { font-size: 22px; font-weight: bold; }
-        .summary-label { font-size: 10px; color: #6b7280; margin-top: 4px; text-transform: uppercase; }
+        .summary-card { background: #f9fafb; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; }
+        .summary-value { font-size: 18px; font-weight: bold; }
+        .summary-label { font-size: 9px; color: #6b7280; margin-top: 4px; text-transform: uppercase; }
         .blue { color: #2563eb; }
         .green { color: #16a34a; }
         .red { color: #dc2626; }
         .orange { color: #ea580c; }
         .purple { color: #7c3aed; }
-        .section-title { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; }
-        .filters-info { background: #f3f4f6; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 11px; color: #4b5563; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
-        th { background: #4f46e5; color: white; padding: 8px 6px; text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase; }
-        td { padding: 8px 6px; border-bottom: 1px solid #e5e7eb; }
+        .section-title { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; }
+        .filters-info { background: #f3f4f6; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 10px; color: #4b5563; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 9px; page-break-inside: auto; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        th { background: #4f46e5; color: white; padding: 6px 4px; text-align: left; font-weight: 600; font-size: 9px; text-transform: uppercase; }
+        td { padding: 6px 4px; border-bottom: 1px solid #e5e7eb; }
         tr:nth-child(even) { background-color: #f9fafb; }
-        .status-present { color: #16a34a; background: #dcfce7; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-        .status-absent { color: #dc2626; background: #fee2e2; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-        .status-late { color: #ea580c; background: #fff7ed; padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-        .footer { margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #9ca3af; text-align: center; }
-        .role-badge { display: inline-block; background: #4f46e5; color: white; padding: 4px 10px; border-radius: 20px; font-size: 10px; margin-top: 8px; }
+        .status-present { color: #16a34a; background: #dcfce7; padding: 2px 4px; border-radius: 4px; font-size: 8px; font-weight: bold; display: inline-block; }
+        .status-absent { color: #dc2626; background: #fee2e2; padding: 2px 4px; border-radius: 4px; font-size: 8px; font-weight: bold; display: inline-block; }
+        .status-late { color: #ea580c; background: #fff7ed; padding: 2px 4px; border-radius: 4px; font-size: 8px; font-weight: bold; display: inline-block; }
+        .footer { margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; font-size: 9px; color: #9ca3af; text-align: center; }
         @media print { 
-            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; padding: 20px; } 
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; padding: 10mm; } 
             .container { max-width: 100%; }
+            .group-section { page-break-inside: auto; }
         }
     </style>
 </head>
@@ -461,19 +576,8 @@ function DailyReportContent() {
                 <div class="summary-label">Attendance</div>
             </div>
         </div>
-        <div class="section-title">Student-wise Attendance Details (${filteredRecords.length} records)</div>
-        <table>
-            <thead>
-                <tr>${headers.map((h: string) => `<th>${h}</th>`).join('')}</tr>
-            </thead>
-            <tbody>
-                ${rows.map((row: string[]) => {
-                    const status = row[8].toLowerCase();
-                    const statusClass = status === 'present' ? 'status-present' : status === 'absent' ? 'status-absent' : 'status-late';
-                    return `<tr>${row.map((cell: string, i: number) => i === 8 ? `<td><span class="${statusClass}">${cell}</span></td>` : `<td>${cell}</td>`).join('')}</tr>`;
-                }).join('')}
-            </tbody>
-        </table>
+        <div class="section-title">Attendance Details (${detailedRecords.length} records)</div>
+        ${tablesHtml}
         <div class="footer">
             Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()} | YSM Attendance System<br>
             <strong>Generated by:</strong> ${user?.firstName} ${user?.lastName} (${user?.role?.replace('_', ' ').toUpperCase()})
@@ -481,16 +585,31 @@ function DailyReportContent() {
     </div>
 </body>
 </html>`;
-                const printWindow = window.open('', '_blank');
-                if (printWindow) {
-                    printWindow.document.write(printContent);
-                    printWindow.document.close();
-                    printWindow.onload = () => { printWindow.print(); };
+
+                const iframe = document.createElement('iframe');
+                iframe.style.position = 'fixed';
+                iframe.style.right = '0';
+                iframe.style.bottom = '0';
+                iframe.style.width = '0';
+                iframe.style.height = '0';
+                iframe.style.border = 'none';
+                document.body.appendChild(iframe);
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                if (iframeDoc) {
+                    iframeDoc.open();
+                    iframeDoc.write(printContent);
+                    iframeDoc.close();
+                    setTimeout(() => {
+                        iframe.contentWindow?.print();
+                        setTimeout(() => document.body.removeChild(iframe), 1000);
+                    }, 500);
                 }
             }
         } catch (err) {
             console.error('Error exporting report:', err);
             alert('Failed to export report. Please try again.');
+        } finally {
+            setExportFormat(null);
         }
     };
 
@@ -535,27 +654,42 @@ function DailyReportContent() {
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('pdf')}
+                                disabled={exportFormat !== null}
                             >
-                                <FileText className="w-4 h-4 sm:mr-2" />
-                                <span className="hidden sm:inline">PDF</span>
+                                {exportFormat === 'pdf' ? (
+                                    <div className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full sm:mr-2"></div>
+                                ) : (
+                                    <FileText className="w-4 h-4 sm:mr-2" />
+                                )}
+                                <span className="hidden sm:inline">{exportFormat === 'pdf' ? 'Generating PDF...' : 'PDF'}</span>
                             </Button>
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('excel')}
+                                disabled={exportFormat !== null}
                             >
-                                <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-                                <span className="hidden sm:inline">Excel</span>
+                                {exportFormat === 'excel' ? (
+                                    <div className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full sm:mr-2"></div>
+                                ) : (
+                                    <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+                                )}
+                                <span className="hidden sm:inline">{exportFormat === 'excel' ? 'Downloading...' : 'Excel'}</span>
                             </Button>
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('csv')}
+                                disabled={exportFormat !== null}
                             >
-                                <FileDown className="w-4 h-4 sm:mr-2" />
-                                <span className="hidden sm:inline">CSV</span>
+                                {exportFormat === 'csv' ? (
+                                    <div className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full sm:mr-2"></div>
+                                ) : (
+                                    <FileDown className="w-4 h-4 sm:mr-2" />
+                                )}
+                                <span className="hidden sm:inline">{exportFormat === 'csv' ? 'Downloading...' : 'CSV'}</span>
                             </Button>
                         </div>
                     </div>
