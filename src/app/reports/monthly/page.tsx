@@ -69,7 +69,7 @@ function MonthlyReportContent() {
     const viewParam = searchParams.get('view') || '';
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [exportLoading, setExportLoading] = useState(false);
+    const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | null>(null);
     const [departments, setDepartments] = useState<Department[]>([]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
     const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
@@ -217,7 +217,7 @@ function MonthlyReportContent() {
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         const end = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
 
-        setExportLoading(true);
+        setExportFormat(format);
         try {
             let url = `/api/reports/students?startDate=${start}&endDate=${end}`;
             if (selectedDepartmentId) url += `&departmentId=${selectedDepartmentId}`;
@@ -558,7 +558,7 @@ function MonthlyReportContent() {
         } catch (err) {
             console.error('Error exporting monthly report:', err);
         }
-        setExportLoading(false);
+        setExportFormat(null);
     };
 
     const formatDate = (dateStr: string) => {
@@ -614,20 +614,28 @@ function MonthlyReportContent() {
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('pdf')}
-                                disabled={exportLoading}
+                                disabled={exportFormat !== null}
                             >
-                                <FileText className="w-4 h-4 sm:mr-2" />
-                                <span className="hidden sm:inline">PDF</span>
+                                {exportFormat === 'pdf' ? (
+                                    <div className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full sm:mr-2"></div>
+                                ) : (
+                                    <FileText className="w-4 h-4 sm:mr-2" />
+                                )}
+                                <span className="hidden sm:inline">{exportFormat === 'pdf' ? 'Generating PDF...' : 'PDF'}</span>
                             </Button>
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-white hover:bg-white/20 hover:text-white h-8 px-3 transition-colors"
                                 onClick={() => exportReport('excel')}
-                                disabled={exportLoading}
+                                disabled={exportFormat !== null}
                             >
-                                <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-                                <span className="hidden sm:inline">Excel</span>
+                                {exportFormat === 'excel' ? (
+                                    <div className="animate-spin w-4 h-4 border-2 border-white/20 border-t-white rounded-full sm:mr-2"></div>
+                                ) : (
+                                    <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+                                )}
+                                <span className="hidden sm:inline">{exportFormat === 'excel' ? 'Downloading...' : 'Excel'}</span>
                             </Button>
                         </div>
                     </div>
