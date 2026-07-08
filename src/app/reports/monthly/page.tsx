@@ -242,7 +242,7 @@ function MonthlyReportContent() {
                         }
                     });
                 });
-                return Array.from(subMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+                return Array.from(subMap.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
             };
 
             const isFiltered = !!selectedDepartmentId && !!selectedSemester;
@@ -259,7 +259,7 @@ function MonthlyReportContent() {
                     }
                 });
             });
-            const subjects = Array.from(uniqueSubjectsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+            const subjects = Array.from(uniqueSubjectsMap.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             const groups: Record<string, {
                 department: string;
@@ -288,15 +288,15 @@ function MonthlyReportContent() {
                 const gA = groups[a];
                 const gB = groups[b];
                 if (gA.department !== gB.department) {
-                    return gA.department.localeCompare(gB.department);
+                    return (gA.department || '').localeCompare(gB.department || '');
                 }
                 return gA.semester - gB.semester;
             });
 
             sortedGroupKeys.forEach(key => {
                 groups[key].students.sort((a, b) => {
-                    const rollA = a.rollNumber || '';
-                    const rollB = b.rollNumber || '';
+                    const rollA = String(a.rollNumber || '');
+                    const rollB = String(b.rollNumber || '');
                     return rollA.localeCompare(rollB, undefined, { numeric: true, sensitivity: 'base' });
                 });
             });

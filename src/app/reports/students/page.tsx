@@ -928,7 +928,7 @@ function StudentReportContent() {
                     }
                 });
             });
-            return Array.from(subMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+            return Array.from(subMap.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         };
 
         // Extract subjects for the single-sheet/filtered case
@@ -956,7 +956,7 @@ function StudentReportContent() {
                 }
             });
         }
-        const subjects = Array.from(uniqueSubjectsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        const subjects = Array.from(uniqueSubjectsMap.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         // Group students for the unfiltered/auto-divide case
         const groups: Record<string, {
@@ -986,7 +986,7 @@ function StudentReportContent() {
             const gA = groups[a];
             const gB = groups[b];
             if (gA.department !== gB.department) {
-                return gA.department.localeCompare(gB.department);
+                return (gA.department || '').localeCompare(gB.department || '');
             }
             return gA.semester - gB.semester;
         });
@@ -994,8 +994,8 @@ function StudentReportContent() {
         // Ensure roll number sorting within each group
         sortedGroupKeys.forEach(key => {
             groups[key].students.sort((a, b) => {
-                const rollA = a.rollNumber || '';
-                const rollB = b.rollNumber || '';
+                const rollA = String(a.rollNumber || '');
+                const rollB = String(b.rollNumber || '');
                 return rollA.localeCompare(rollB, undefined, { numeric: true, sensitivity: 'base' });
             });
         });
@@ -1133,7 +1133,7 @@ function StudentReportContent() {
                     }
                 });
             });
-            const allSubjects = Array.from(allSubjectsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+            const allSubjects = Array.from(allSubjectsMap.values()).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
             const headers = ['Department', 'Semester', 'Student ID', 'Roll Number', 'Name', 'Total Classes', 'Attended', 'Percentage', 'Status', ...allSubjects.map(sub => sub.paperCode ? `${sub.name} (${sub.paperCode})` : sub.name)];
             
